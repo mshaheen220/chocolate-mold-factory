@@ -1,4 +1,5 @@
 import type { Field, ParamValues } from "./types";
+import { computeAutoFitScale, type SvgNaturalSize } from "./utils/svg";
 
 // render_mode values that actually place tokens (base + relief + border).
 const TOKEN_MODES = ["single_token", "tokens_2x2", "reusable_mold_box", "adjustable_frame_preview"];
@@ -10,6 +11,93 @@ const MARGIN_MODES = ["reusable_mold_box", "adjustable_frame_preview"];
 const WALL_MODES = ["reusable_mold_box", "adjustable_frame_strip", "adjustable_frame_batch", "adjustable_frame_preview"];
 // render_mode values that deal with individually-printed L-profile strips.
 const FRAME_MODES = ["adjustable_frame_strip", "adjustable_frame_batch", "adjustable_frame_preview"];
+
+export interface TokenPreset {
+  id: "small" | "medium" | "large" | "custom";
+  label: string;
+  sublabel: string;
+  size: number; // Diameter for circles, side/width length for other shapes (mm)
+  baseThickness: number; // mm
+  reliefHeight: number; // mm
+}
+
+export const TOKEN_PRESETS: Record<TokenPreset["id"], TokenPreset> = {
+  small: {
+    id: "small",
+    label: "Small",
+    sublabel: "30mm (~1.2\") · Foil Coin Size",
+    size: 30,
+    baseThickness: 3.5,
+    reliefHeight: 1.5,
+  },
+  medium: {
+    id: "medium",
+    label: "Medium",
+    sublabel: "45mm (~1.75\") · Oreo Size",
+    size: 45,
+    baseThickness: 4.5,
+    reliefHeight: 1.8,
+  },
+  large: {
+    id: "large",
+    label: "Large",
+    sublabel: "65mm (~2.5\") · Challenge Medallion",
+    size: 65,
+    baseThickness: 6.0,
+    reliefHeight: 2.2,
+  },
+  custom: {
+    id: "custom",
+    label: "Custom",
+    sublabel: "Manual millimeter control",
+    // Deliberately distinct from every fixed preset above (matches this
+    // app's own schema defaults) - if these coincided with e.g. Medium's
+    // values, selecting Custom would set those numbers and then get
+    // misidentified as Medium by getActiveTokenPreset below.
+    size: 40,
+    baseThickness: 3,
+    reliefHeight: 1.5,
+  },
+};
+
+/** Shared by both the upload flow and the size-preset flow, so a graphic
+ * stays fit to the token whichever one last changed the token's footprint. */
+export function autoFitScaleForToken(natural: SvgNaturalSize, params: ParamValues): number {
+  const shape = params.token_shape;
+  const targetWidth = Number(params.token_size);
+  const targetHeight = shape === "oval" || shape === "rectangle" ? Number(params.token_length) : targetWidth;
+  return computeAutoFitScale(natural, targetWidth, targetHeight);
+}
+
+/**
+ * Derives the active preset from the current params, rather than tracking
+ * it as separate state - so manually nudging a slider after picking a
+ * preset naturally falls back to "custom" with no extra bookkeeping.
+ *
+ * Selecting a preset also re-fits `svg_scale` to the new token footprint
+ * (see App.tsx's handlePresetSelect), so a manual change to SVG Scale
+ * afterward should equally break the match even though svg_scale isn't
+ * one of the preset's own fields. `svgNaturalSize` lets us recompute what
+ * auto-fit would currently produce and compare against it; pass `null`
+ * when no graphic is loaded to skip that check entirely.
+ */
+export function getActiveTokenPreset(params: ParamValues, svgNaturalSize: SvgNaturalSize | null): TokenPreset["id"] {
+  const sizeMatch = Object.values(TOKEN_PRESETS).find(
+    (preset) =>
+      preset.id !== "custom" &&
+      preset.size === Number(params.token_size) &&
+      preset.baseThickness === Number(params.base_thickness) &&
+      preset.reliefHeight === Number(params.relief_height),
+  );
+  if (!sizeMatch) return "custom";
+
+  if (svgNaturalSize) {
+    const expectedScale = autoFitScaleForToken(svgNaturalSize, params);
+    if (Number(params.svg_scale) !== expectedScale) return "custom";
+  }
+
+  return sizeMatch.id;
+}
 
 export const isTokenMode = (p: ParamValues) => TOKEN_MODES.includes(String(p.render_mode));
 const isGridMode = (p: ParamValues) => GRID_MODES.includes(String(p.render_mode));

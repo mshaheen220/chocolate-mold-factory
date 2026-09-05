@@ -6,9 +6,9 @@ import { TabSwitcher } from "./components/TabSwitcher";
 import { GeneratingOverlay } from "./components/viewer/GeneratingOverlay";
 import { STLViewer } from "./components/viewer/STLViewer";
 import { TokenLayoutPreview } from "./components/viewer/TokenLayoutPreview";
-import { defaultParams, isTokenMode, medallionFields, moldBoxFields } from "./paramSchemas";
+import { autoFitScaleForToken, defaultParams, isTokenMode, medallionFields, moldBoxFields, type TokenPreset } from "./paramSchemas";
 import type { Field, ParamValues, Quality, Workflow } from "./types";
-import { computeAutoFitScale, readSvgNaturalSize, type SvgNaturalSize } from "./utils/svg";
+import { readSvgNaturalSize, type SvgNaturalSize } from "./utils/svg";
 
 export default function App() {
   const [workflow, setWorkflow] = useState<Workflow>("medallion");
@@ -97,11 +97,7 @@ export default function App() {
     readSvgNaturalSize(file)
       .then((natural) => {
         setSvgNaturalSize(natural);
-        const current = medallionParamsRef.current;
-        const shape = current.token_shape;
-        const targetWidth = Number(current.token_size);
-        const targetHeight = shape === "oval" || shape === "rectangle" ? Number(current.token_length) : targetWidth;
-        const autoScale = computeAutoFitScale(natural, targetWidth, targetHeight);
+        const autoScale = autoFitScaleForToken(natural, medallionParamsRef.current);
         setMedallionParams((prev) => ({ ...prev, svg_scale: autoScale }));
       })
       .catch(() => {
@@ -109,6 +105,27 @@ export default function App() {
         // preview just won't auto-fit for this file.
       });
   }, []);
+
+  const handlePresetSelect = useCallback(
+    (preset: TokenPreset) => {
+      setMedallionParams((prev) => {
+        const next: ParamValues = {
+          ...prev,
+          token_size: preset.size,
+          base_thickness: preset.baseThickness,
+          relief_height: preset.reliefHeight,
+        };
+        // Re-fit the graphic to the new footprint, same as on upload -
+        // otherwise an image sized for one preset looks lost or oversized
+        // after switching to another.
+        if (svgNaturalSize) {
+          next.svg_scale = autoFitScaleForToken(svgNaturalSize, next);
+        }
+        return next;
+      });
+    },
+    [svgNaturalSize],
+  );
 
   const showLayoutPreview =
     workflow === "medallion" && svgFile && svgPreviewUrl && svgNaturalSize && isTokenMode(params);
@@ -140,7 +157,9 @@ export default function App() {
               onChange={handleFieldChange}
               svgFile={svgFile}
               svgPreviewUrl={svgPreviewUrl}
+              svgNaturalSize={svgNaturalSize}
               onSvgFile={handleSvgFile}
+              onSelectPreset={handlePresetSelect}
             />
           </aside>
 

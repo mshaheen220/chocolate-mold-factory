@@ -1,7 +1,10 @@
+import { isTokenMode, type TokenPreset } from "../paramSchemas";
 import type { Field, ParamValues, Workflow } from "../types";
+import type { SvgNaturalSize } from "../utils/svg";
 import { ParameterCard } from "./ParameterCard";
 import { FieldRenderer } from "./FieldRenderer";
 import { FileDropzone } from "./controls/FileDropzone";
+import { TokenSizePresets } from "./controls/TokenSizePresets";
 
 interface SidebarProps {
   workflow: Workflow;
@@ -10,7 +13,9 @@ interface SidebarProps {
   onChange: (key: string, value: Field["default"]) => void;
   svgFile: File | null;
   svgPreviewUrl: string | null;
+  svgNaturalSize: SvgNaturalSize | null;
   onSvgFile: (file: File | null) => void;
+  onSelectPreset: (preset: TokenPreset) => void;
 }
 
 const GROUP_CARDS: { group: Field["group"]; title: string }[] = [
@@ -20,7 +25,17 @@ const GROUP_CARDS: { group: Field["group"]; title: string }[] = [
   { group: "frame", title: "Adjustable Mold Frame" },
 ];
 
-export function Sidebar({ workflow, fields, params, onChange, svgFile, svgPreviewUrl, onSvgFile }: SidebarProps) {
+export function Sidebar({
+  workflow,
+  fields,
+  params,
+  onChange,
+  svgFile,
+  svgPreviewUrl,
+  svgNaturalSize,
+  onSvgFile,
+  onSelectPreset,
+}: SidebarProps) {
   return (
     <div className="flex flex-col gap-4">
       {workflow === "medallion" && (
@@ -50,6 +65,9 @@ export function Sidebar({ workflow, fields, params, onChange, svgFile, svgPrevie
 
         return (
           <ParameterCard key={group} title={title}>
+            {group === "geometry" && workflow === "medallion" && isTokenMode(params) && (
+              <TokenSizePresets params={params} svgNaturalSize={svgNaturalSize} onSelect={onSelectPreset} />
+            )}
             {groupFields.map((field) => (
               <FieldRenderer key={field.key} field={field} params={params} onChange={onChange} />
             ))}

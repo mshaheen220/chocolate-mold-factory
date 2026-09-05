@@ -46,6 +46,13 @@ function TokenOutline({
  * compile stays behind the explicit Generate button where its latency is
  * expected rather than surprising.
  */
+// Fixed to the token_size/token_length schema max (150mm, see
+// paramSchemas.ts) rather than derived from the current token dimensions -
+// otherwise the view would auto-zoom to fit whatever size is selected, and
+// a 30mm and a 65mm token would always render at the same on-screen size,
+// hiding the actual scale difference between size presets.
+const FIXED_VIEW_HALF = 90;
+
 export function TokenLayoutPreview({
   tokenShape,
   tokenSize,
@@ -61,8 +68,7 @@ export function TokenLayoutPreview({
   const effLength = tokenShape === "oval" || tokenShape === "rectangle" ? tokenLength : tokenSize;
   const halfWidth = tokenSize / 2;
   const halfHeight = effLength / 2;
-  const pad = Math.max(halfWidth, halfHeight) * 0.3;
-  const viewHalf = Math.max(halfWidth, halfHeight) + pad;
+  const viewHalf = FIXED_VIEW_HALF;
 
   const imgWidth = svgNaturalSize.width * svgScale;
   const imgHeight = svgNaturalSize.height * svgScale;
