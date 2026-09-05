@@ -5,12 +5,22 @@ export interface GenerateRequest {
   params: ParamValues;
   file?: File | null;
   quality?: Quality;
+  renderDetail?: number;
 }
 
-export async function generateModel({ workflow, params, file, quality = "final" }: GenerateRequest): Promise<GenerateResponse> {
+export async function generateModel({
+  workflow,
+  params,
+  file,
+  quality = "final",
+  renderDetail,
+}: GenerateRequest): Promise<GenerateResponse> {
   const form = new FormData();
   form.append("workflow", workflow);
   form.append("quality", quality);
+  if (renderDetail !== undefined) {
+    form.append("render_detail", String(renderDetail));
+  }
   for (const [key, value] of Object.entries(params)) {
     form.append(key, String(value));
   }

@@ -10,7 +10,12 @@ export function ParameterCard({ title, defaultOpen = true, children }: Parameter
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-cocoa-800 bg-cocoa-900/60">
+    // shrink-0: this card's overflow-hidden zeroes its flexbox automatic
+    // minimum size (per spec), so as a *direct* child of a bounded flex
+    // column (e.g. the sidebar's outer scroll container) it would get
+    // crushed to ~0 height by flex-shrink instead of the container
+    // scrolling. shrink-0 opts it out of that shrinkage unconditionally.
+    <div className="shrink-0 overflow-hidden rounded-lg border border-cocoa-800 bg-cocoa-900/60">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

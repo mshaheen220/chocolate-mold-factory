@@ -40,6 +40,45 @@ export async function readSvgNaturalSize(file: File): Promise<SvgNaturalSize> {
  * `fillRatio` of the given target footprint without distorting its aspect
  * ratio, then snaps to the given step for a tidy slider value.
  */
+/**
+ * Rasterizes the SVG onto an offscreen canvas and measures what fraction
+ * of its bounding box is actually filled (non-transparent). Used for
+ * volume estimation: most artwork covers only a fraction of its own
+ * bounding box, so using the bbox area directly would overstate how much
+ * chocolate the relief adds by a wide margin. A blob: URL for a local
+ * File is same-origin, so this doesn't taint the canvas.
+ */
+export async function measureSvgFillRatio(file: File): Promise<number> {
+  const SAMPLE_SIZE = 128;
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.src = url;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Failed to rasterize SVG"));
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = SAMPLE_SIZE;
+    canvas.height = SAMPLE_SIZE;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return 1;
+
+    ctx.clearRect(0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
+    ctx.drawImage(img, 0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
+
+    const { data } = ctx.getImageData(0, 0, SAMPLE_SIZE, SAMPLE_SIZE);
+    let filled = 0;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 32) filled++; // alpha channel above a small anti-aliasing noise floor
+    }
+    return filled / (SAMPLE_SIZE * SAMPLE_SIZE);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function computeAutoFitScale(
   natural: SvgNaturalSize,
   targetWidth: number,

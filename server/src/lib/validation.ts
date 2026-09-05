@@ -23,7 +23,6 @@ export const medallionSchema: ParamSchema = {
     type: "enum",
     options: [
       "single_token",
-      "tokens_2x2",
       "reusable_mold_box",
       "adjustable_frame_strip",
       "adjustable_frame_batch",
@@ -40,6 +39,7 @@ export const medallionSchema: ParamSchema = {
   relief_height: { type: "number", min: 0.1, max: 20, default: 1.5 },
   draft_angle: { type: "number", min: 0, max: 45, default: 3 },
   border_style: { type: "enum", options: ["none", "single", "double", "beaded"], default: "none" },
+  border_direction: { type: "enum", options: ["raised", "recessed"], default: "raised" },
   border_inset: { type: "number", min: 0, max: 40, default: 3 },
   border_width: { type: "number", min: 0.2, max: 15, default: 1.6 },
   border_gap: { type: "number", min: 0, max: 15, default: 1.2 },
@@ -86,7 +86,13 @@ export type Quality = "draft" | "final";
 // `-D $fn=N` overrides whatever the template itself assigns (confirmed
 // empirically), so this is the whole mechanism behind fast "Preview" vs
 // slow, print-quality "Render" - mirroring OpenSCAD's own F5/F6 split.
-export const FACET_COUNT_BY_QUALITY: Record<Quality, number> = { draft: 16, final: 96 };
+// Quick Preview always uses a small fixed value so it stays fast and
+// predictable regardless of user settings; Full Render's facet count is
+// user-adjustable (the "Render Detail" slider) via parseRenderDetail.
+export const DRAFT_FACET_COUNT = 16;
+export const DEFAULT_FINAL_FACET_COUNT = 96;
+export const MIN_FACET_COUNT = 16;
+export const MAX_FACET_COUNT = 180;
 
 // Beaded borders union one small circle per bead at a fixed local
 // resolution (independent of $fn), so on a multi-token grid they dominate
@@ -96,6 +102,12 @@ export const DRAFT_BEAD_COUNT_CAP = 8;
 
 export function parseQuality(raw: unknown): Quality {
   return raw === "draft" ? "draft" : "final";
+}
+
+export function parseRenderDetail(raw: unknown): number {
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return DEFAULT_FINAL_FACET_COUNT;
+  return Math.min(MAX_FACET_COUNT, Math.max(MIN_FACET_COUNT, Math.round(num)));
 }
 
 export function isWorkflow(value: unknown): value is Workflow {
@@ -147,7 +159,7 @@ export function validateParams(schema: ParamSchema, raw: Record<string, unknown>
   // Reject any keys in the raw payload that are not part of the schema and
   // not one of the known non-parameter fields, so unexpected fields never
   // silently pass through unvalidated.
-  const knownNonParamKeys = new Set(["workflow", "quality"]);
+  const knownNonParamKeys = new Set(["workflow", "quality", "render_detail"]);
   for (const key of Object.keys(raw)) {
     if (!(key in schema) && !knownNonParamKeys.has(key)) {
       issues.push(`Unexpected field: ${key}`);

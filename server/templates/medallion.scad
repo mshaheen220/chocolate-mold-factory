@@ -4,7 +4,7 @@
 // directly in the OpenSCAD GUI for template development.
 
 /* [Render] */
-render_mode = "single_token"; // single_token | tokens_2x2 | reusable_mold_box | adjustable_frame_strip | adjustable_frame_batch | adjustable_frame_preview
+render_mode = "single_token"; // single_token | reusable_mold_box | adjustable_frame_strip | adjustable_frame_batch | adjustable_frame_preview
 // Backend-injected, not a user-facing parameter: swaps the imported SVG
 // relief for its convex hull. A detailed illustration can have thousands
 // of path points, which dominates CGAL compile time regardless of $fn -
@@ -27,14 +27,15 @@ base_thickness = 3;
 relief_height  = 1.5;
 draft_angle    = 3;
 
-/* [Raised Border] */
-border_style  = "none"; // none | single | double | beaded
-border_inset  = 3;      // distance from the token's outer edge to the border
-border_width  = 1.6;    // thickness of each border line (single & double)
-border_gap    = 1.2;    // gap between the two lines (double only)
-border_height = 0.8;    // how far the border rises above the token face
-bead_count    = 24;     // number of individual beads around the perimeter (beaded only)
-bead_size     = 2.5;    // diameter of each bead (beaded only)
+/* [Border] */
+border_style     = "none";  // none | single | double | beaded
+border_direction = "raised"; // raised | recessed
+border_inset     = 3;      // distance from the token's outer edge to the border
+border_width     = 1.6;    // thickness of each border line (single & double)
+border_gap       = 1.2;    // gap between the two lines (double only)
+border_height    = 0.8;    // how far the border rises above (raised) or cuts into (recessed) the token face
+bead_count       = 24;     // number of individual beads around the perimeter (beaded only)
+bead_size        = 2.5;    // diameter of each bead (beaded only)
 
 /* [Mold Box Dimensions] */
 grid_x         = 2;
@@ -163,17 +164,36 @@ module border_2d() {
   }
 }
 
-module token() {
+module token_body() {
   union() {
     linear_extrude(height = base_thickness)
       token_base_2d();
     translate([0, 0, base_thickness])
       svg_relief();
-    if (border_style != "none") {
+  }
+}
+
+module token() {
+  if (border_style != "none" && border_direction == "recessed") {
+    // Carve the border into the top face rather than adding to it. Depth
+    // is capped short of the full base thickness so a deep border_height
+    // can never cut a hole through the token.
+    recess_depth = min(border_height, max(0, base_thickness - 0.2));
+    difference() {
+      token_body();
+      translate([0, 0, base_thickness - recess_depth])
+        linear_extrude(height = recess_depth + 0.01) // +eps: guarantees a clean cut through the top face
+          border_2d();
+    }
+  } else if (border_style != "none") {
+    union() {
+      token_body();
       translate([0, 0, base_thickness])
         linear_extrude(height = border_height)
           border_2d();
     }
+  } else {
+    token_body();
   }
 }
 
@@ -286,9 +306,7 @@ module adjustable_frame_preview() {
 // Render dispatch
 // ---------------------------------------------------------------------
 
-if (render_mode == "tokens_2x2") {
-  token_grid();
-} else if (render_mode == "reusable_mold_box") {
+if (render_mode == "reusable_mold_box") {
   mold_box();
 } else if (render_mode == "adjustable_frame_strip") {
   frame_strip_solid(frame_strip_length);

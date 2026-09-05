@@ -1,10 +1,20 @@
 import { isTokenMode, type TokenPreset } from "../paramSchemas";
 import type { Field, ParamValues, Workflow } from "../types";
 import type { SvgNaturalSize } from "../utils/svg";
+import { ChocolateCostEstimate } from "./ChocolateCostEstimate";
 import { ParameterCard } from "./ParameterCard";
+import { PrintReferenceCard } from "./PrintReferenceCard";
 import { FieldRenderer } from "./FieldRenderer";
+import { NumberField } from "./controls/NumberField";
 import { FileDropzone } from "./controls/FileDropzone";
 import { TokenSizePresets } from "./controls/TokenSizePresets";
+
+// Matches the server's DEFAULT_FINAL_FACET_COUNT / MIN_FACET_COUNT /
+// MAX_FACET_COUNT (server/src/lib/validation.ts) - Quick Preview always
+// uses a small fixed facet count regardless of this setting, so it only
+// affects Full Render.
+const MIN_RENDER_DETAIL = 16;
+const MAX_RENDER_DETAIL = 180;
 
 interface SidebarProps {
   workflow: Workflow;
@@ -14,13 +24,16 @@ interface SidebarProps {
   svgFile: File | null;
   svgPreviewUrl: string | null;
   svgNaturalSize: SvgNaturalSize | null;
+  svgFillRatio: number | null;
   onSvgFile: (file: File | null) => void;
   onSelectPreset: (preset: TokenPreset) => void;
+  renderDetail: number;
+  onRenderDetailChange: (value: number) => void;
 }
 
 const GROUP_CARDS: { group: Field["group"]; title: string }[] = [
   { group: "geometry", title: "Geometry & Sizing" },
-  { group: "border", title: "Raised Border" },
+  { group: "border", title: "Border" },
   { group: "cavity", title: "Mold Box Cavity" },
   { group: "frame", title: "Adjustable Mold Frame" },
 ];
@@ -33,8 +46,11 @@ export function Sidebar({
   svgFile,
   svgPreviewUrl,
   svgNaturalSize,
+  svgFillRatio,
   onSvgFile,
   onSelectPreset,
+  renderDetail,
+  onRenderDetailChange,
 }: SidebarProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -74,6 +90,31 @@ export function Sidebar({
           </ParameterCard>
         );
       })}
+
+      <ParameterCard title="Render Detail" defaultOpen={false}>
+        <NumberField
+          label="Facet Count ($fn)"
+          value={renderDetail}
+          min={MIN_RENDER_DETAIL}
+          max={MAX_RENDER_DETAIL}
+          step={2}
+          onChange={onRenderDetailChange}
+        />
+        <p className="text-xs text-cocoa-400">
+          Curve smoothness for Full Render — higher is smoother but slower. Quick Preview always uses a fast fixed
+          value regardless of this setting.
+        </p>
+      </ParameterCard>
+
+      {workflow === "medallion" && isTokenMode(params) && (
+        <ParameterCard title="Chocolate Cost Estimate" defaultOpen={false}>
+          <ChocolateCostEstimate params={params} svgNaturalSize={svgNaturalSize} svgFillRatio={svgFillRatio} />
+        </ParameterCard>
+      )}
+
+      <ParameterCard title="Print & Slicer Reference" defaultOpen={false}>
+        <PrintReferenceCard />
+      </ParameterCard>
     </div>
   );
 }

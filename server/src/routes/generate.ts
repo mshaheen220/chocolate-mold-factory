@@ -9,9 +9,10 @@ import { OpenScadError, runOpenScad, type RenderOptions } from "../lib/openscad"
 import { normalizeSvgForOpenScad } from "../lib/svg";
 import {
   DRAFT_BEAD_COUNT_CAP,
-  FACET_COUNT_BY_QUALITY,
+  DRAFT_FACET_COUNT,
   isWorkflow,
   parseQuality,
+  parseRenderDetail,
   schemasByWorkflow,
   templateByWorkflow,
   ValidationError,
@@ -33,9 +34,10 @@ generateRouter.post("/generate", upload.single("file"), async (req, res) => {
 
     const schema = schemasByWorkflow[workflow];
     const params: ScadParams = validateParams(schema, req.body ?? {});
-    const quality = parseQuality((req.body as { quality?: string } | undefined)?.quality);
+    const body = req.body as { quality?: string; render_detail?: string } | undefined;
+    const quality = parseQuality(body?.quality);
     const renderOptions: RenderOptions = {
-      facetCount: FACET_COUNT_BY_QUALITY[quality],
+      facetCount: quality === "draft" ? DRAFT_FACET_COUNT : parseRenderDetail(body?.render_detail),
       fastPreview: quality === "draft",
     };
 

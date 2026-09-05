@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { GENERATING_TIPS, pickRandomTipIndex } from "../../tips";
+import { pickRandomTipIndex, TIPS } from "../../tips";
 
 interface GeneratingOverlayProps {
   quality: "draft" | "final";
@@ -61,7 +61,7 @@ export function GeneratingOverlay({ quality }: GeneratingOverlayProps) {
         className="max-w-sm animate-fade-in rounded-lg border border-cocoa-700 bg-cocoa-900 px-4 py-3 text-center text-xs leading-relaxed text-cocoa-100 shadow-lg"
       >
         <span className="font-semibold text-white">Tip: </span>
-        {GENERATING_TIPS[tipIndex]}
+        {TIPS[tipIndex].text}
       </div>
     </div>
   );

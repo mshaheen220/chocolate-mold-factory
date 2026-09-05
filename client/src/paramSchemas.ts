@@ -2,9 +2,9 @@ import type { Field, ParamValues } from "./types";
 import { computeAutoFitScale, type SvgNaturalSize } from "./utils/svg";
 
 // render_mode values that actually place tokens (base + relief + border).
-const TOKEN_MODES = ["single_token", "tokens_2x2", "reusable_mold_box", "adjustable_frame_preview"];
+const TOKEN_MODES = ["single_token", "reusable_mold_box", "adjustable_frame_preview"];
 // render_mode values that lay tokens out in a grid_x * grid_y array.
-const GRID_MODES = ["tokens_2x2", "reusable_mold_box", "adjustable_frame_preview"];
+const GRID_MODES = ["reusable_mold_box", "adjustable_frame_preview"];
 // render_mode values with a margin between the token grid and the surrounding wall.
 const MARGIN_MODES = ["reusable_mold_box", "adjustable_frame_preview"];
 // render_mode values that build a wall out of box_wall_th / box_floor_th / silicone_depth.
@@ -100,7 +100,7 @@ export function getActiveTokenPreset(params: ParamValues, svgNaturalSize: SvgNat
 }
 
 export const isTokenMode = (p: ParamValues) => TOKEN_MODES.includes(String(p.render_mode));
-const isGridMode = (p: ParamValues) => GRID_MODES.includes(String(p.render_mode));
+export const isGridMode = (p: ParamValues) => GRID_MODES.includes(String(p.render_mode));
 const isMarginMode = (p: ParamValues) => MARGIN_MODES.includes(String(p.render_mode));
 const isWallMode = (p: ParamValues) => WALL_MODES.includes(String(p.render_mode));
 const isFrameMode = (p: ParamValues) => FRAME_MODES.includes(String(p.render_mode));
@@ -115,7 +115,6 @@ export const medallionFields: Field[] = [
     default: "single_token",
     options: [
       { value: "single_token", label: "Single Token" },
-      { value: "tokens_2x2", label: "Token Grid" },
       { value: "reusable_mold_box", label: "Reusable Mold Box" },
       { value: "adjustable_frame_strip", label: "Adjustable Frame — Single Strip" },
       { value: "adjustable_frame_batch", label: "Adjustable Frame — Print Batch" },
@@ -220,7 +219,7 @@ export const medallionFields: Field[] = [
     showIf: isTokenMode,
   },
 
-  // ---- Raised Border ----
+  // ---- Border ----
   {
     type: "enum",
     key: "border_style",
@@ -234,6 +233,18 @@ export const medallionFields: Field[] = [
       { value: "beaded", label: "Beaded" },
     ],
     showIf: isTokenMode,
+  },
+  {
+    type: "enum",
+    key: "border_direction",
+    label: "Border Direction",
+    group: "border",
+    default: "raised",
+    options: [
+      { value: "raised", label: "Raised" },
+      { value: "recessed", label: "Recessed" },
+    ],
+    showIf: hasBorder,
   },
   {
     type: "number",

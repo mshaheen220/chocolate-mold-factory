@@ -82,6 +82,19 @@ export function runOpenScad(
       { timeout: config.openscadTimeoutMs, maxBuffer: 10 * 1024 * 1024 },
       (error, _stdout, stderr) => {
         if (error) {
+          // execFile's timeout kills the process rather than letting
+          // OpenSCAD report an error, so stderr is typically empty here -
+          // the generic "Command failed" message alone tells the user
+          // nothing actionable about what actually happened.
+          if (error.killed || error.signal) {
+            reject(
+              new OpenScadError(
+                `OpenSCAD render timed out after ${Math.round(config.openscadTimeoutMs / 1000)}s. Beaded borders and detailed uploaded graphics are the most common cause - try Quick Preview first, or reduce bead count / border complexity.`,
+                stderr,
+              ),
+            );
+            return;
+          }
           reject(new OpenScadError(`OpenSCAD compile failed: ${error.message}`, stderr));
           return;
         }

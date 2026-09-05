@@ -10,7 +10,15 @@ function Model({ url }: { url: string }) {
   const prepared = useMemo(() => {
     const geo = geometry.clone();
     geo.computeVertexNormals();
-    geo.center();
+    // Every template extrudes upward from z=0 (its bottom face already
+    // sits on the print bed) - geo.center() would recenter Z too,
+    // sinking the model half its height below the floor grid. Center
+    // only the horizontal footprint and anchor the bottom face at 0.
+    geo.computeBoundingBox();
+    const box = geo.boundingBox!;
+    const centerX = (box.min.x + box.max.x) / 2;
+    const centerY = (box.min.y + box.max.y) / 2;
+    geo.translate(-centerX, -centerY, -box.min.z);
     return geo;
   }, [geometry]);
 

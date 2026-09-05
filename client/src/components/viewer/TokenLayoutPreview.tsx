@@ -7,6 +7,7 @@ interface TokenLayoutPreviewProps {
   tokenLength: number;
   cornerRadius: number;
   borderStyle: string;
+  borderDirection: string;
   borderInset: number;
   svgUrl: string;
   svgNaturalSize: SvgNaturalSize;
@@ -17,6 +18,7 @@ interface ShapeStyle {
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
+  strokeOpacity?: number;
   strokeDasharray?: string;
 }
 
@@ -59,6 +61,7 @@ export function TokenLayoutPreview({
   tokenLength,
   cornerRadius,
   borderStyle,
+  borderDirection,
   borderInset,
   svgUrl,
   svgNaturalSize,
@@ -107,8 +110,12 @@ export function TokenLayoutPreview({
             halfHeight={Math.max(0, halfHeight - borderInset)}
             cornerRadius={cornerRadius}
             fill="none"
-            stroke="#4a2a1c"
-            strokeWidth={viewHalf * 0.02}
+            // Raised catches light (bright highlight); recessed reads as a
+            // shadowed groove (dark, slightly heavier stroke) - a rough
+            // but immediate visual cue for which direction is selected.
+            stroke={borderDirection === "recessed" ? "#2c1a12" : "#f3dfb8"}
+            strokeWidth={viewHalf * (borderDirection === "recessed" ? 0.024 : 0.02)}
+            strokeOpacity={borderDirection === "recessed" ? 0.85 : 1}
             strokeDasharray={borderStyle === "beaded" ? `${viewHalf * 0.03} ${viewHalf * 0.03}` : undefined}
           />
         )}
