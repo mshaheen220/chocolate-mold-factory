@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-cocoa-950 text-cocoa-100 antialiased;
+}
+
+input[type="range"] {
+  height: 4px;
+  border-radius: 9999px;
+  background: theme("colors.cocoa.800");
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: theme("colors.cocoa.700");
+  border-radius: 9999px;
+}

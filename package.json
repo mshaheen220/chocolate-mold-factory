@@ -1,0 +1,23 @@
+{
+  "name": "chocolate-mold-factory",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Visual UI to configure, preview, and generate 3D-printable silicone mold boxes and chocolate medallions via OpenSCAD.",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=server & npm run dev --workspace=client & wait",
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "build": "npm run build --workspace=client && npm run build --workspace=server",
+    "start": "npm run start --workspace=server",
+    "lint": "npm run lint --workspace=client && npm run lint --workspace=server",
+    "typecheck": "npm run typecheck --workspace=client && npm run typecheck --workspace=server"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

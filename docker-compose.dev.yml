@@ -1,0 +1,47 @@
+# Dual-service development override: a hot-reloading Express backend and a
+# Vite dev server with HMR, wired together over the compose network.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Frontend: http://localhost:5173 (proxies /api to the backend)
+# Backend:  http://localhost:3000
+services:
+  app:
+    build:
+      target: dev
+    image: chocolate-mold-factory:dev
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - OPENSCAD_BIN=openscad
+      - CLIENT_ORIGIN=http://localhost:5173
+    volumes:
+      - ./server/src:/app/server/src
+      - ./server/templates:/app/server/templates
+      - ./server/output:/app/server/output
+      - ./server/uploads:/app/server/uploads
+      - ./server/temp:/app/server/temp
+      - ./server/tsconfig.json:/app/server/tsconfig.json
+    healthcheck:
+      disable: true
+
+  client:
+    build:
+      context: .
+      target: client-dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_PROXY_TARGET=http://app:3000
+    volumes:
+      - ./client/src:/app/client/src
+      - ./client/index.html:/app/client/index.html
+      - ./client/vite.config.ts:/app/client/vite.config.ts
+      - ./client/tailwind.config.js:/app/client/tailwind.config.js
+      - ./client/postcss.config.js:/app/client/postcss.config.js
+      - ./client/tsconfig.json:/app/client/tsconfig.json
+      - ./client/tsconfig.app.json:/app/client/tsconfig.app.json
+      - ./client/tsconfig.node.json:/app/client/tsconfig.node.json
+    depends_on:
+      - app
