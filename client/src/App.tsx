@@ -152,7 +152,10 @@ export default function App() {
         <div className="flex shrink-0 items-center gap-2">
           <img src="/favicon2.svg" alt="" className="h-7 w-7 rounded-md" />
           <div>
-            <h1 className="text-lg font-bold tracking-tight text-cocoa-50">Chocolate Mold Factory</h1>
+            <h1 className="text-lg font-bold tracking-tight text-cocoa-50">
+              Chocolate Mold Factory
+              <span className="ml-2 align-middle text-[10px] font-normal text-cocoa-500">v{__APP_VERSION__}</span>
+            </h1>
             <p className="text-xs text-cocoa-400">Configure, preview, and generate 3D-printable mold assets.</p>
           </div>
         </div>
