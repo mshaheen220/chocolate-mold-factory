@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Mold Box (Cyan / CAD Silicone) -->
+    <linearGradient id="frameTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <linearGradient id="frameLeft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7"/>
+      <stop offset="100%" stop-color="#0369A1"/>
+    </linearGradient>
+    <linearGradient id="frameRight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0369A1"/>
+      <stop offset="100%" stop-color="#075985"/>
+    </linearGradient>
+
+    <!-- Chocolate Coin Rim / Thickness Drop -->
+    <linearGradient id="coinEdge" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4A1E08"/>
+      <stop offset="50%" stop-color="#6E3314"/>
+      <stop offset="100%" stop-color="#2D1104"/>
+    </linearGradient>
+
+    <!-- Chocolate Coin Face (Tipped forward toward viewer) -->
+    <linearGradient id="coinFace" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%" stop-color="#934B24"/>
+      <stop offset="45%" stop-color="#6F3214"/>
+      <stop offset="100%" stop-color="#3C1705"/>
+    </linearGradient>
+
+    <!-- Relief Ridge Sheen -->
+    <linearGradient id="reliefSheen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B26335"/>
+      <stop offset="100%" stop-color="#4E210A"/>
+    </linearGradient>
+
+    <!-- Gold CAD Crosshair Accent -->
+    <linearGradient id="goldSheen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#EAB308"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mold Box (Transparent background, clean rim) -->
+  <!-- Left Outer Wall -->
+  <polygon points="10,43 32,54 32,60 10,49" fill="url(#frameLeft)"/>
+  <!-- Right Outer Wall -->
+  <polygon points="32,54 54,43 54,49 32,60" fill="url(#frameRight)"/>
+  <!-- Top Rim of Mold Frame -->
+  <polygon points="10,43 32,32 54,43 32,54" fill="url(#frameTop)"/>
+
+  <!-- Mold Box Inner Cavity -->
+  <polygon points="14,43 32,34 50,43 32,52" fill="#082F49"/>
+  <!-- Recessed Floor Cavity -->
+  <ellipse cx="32" cy="43" rx="12" ry="5.5" fill="#041D2D" opacity="0.9"/>
+
+  <!-- Chocolate Coin (Angled up toward camera) -->
+  <!-- Bottom Thickness Rim -->
+  <path d="M 16,21.5 A 16 12.5 0 0 0 48,21.5 L 48,25 A 16 12.5 0 0 1 16,25 Z" fill="url(#coinEdge)"/>
+
+  <!-- Broad Coin Face -->
+  <ellipse cx="32" cy="21.5" rx="16" ry="12.5" fill="url(#coinFace)"/>
+
+  <!-- Stamped Outer Bevel -->
+  <ellipse cx="32" cy="21.5" rx="13.5" ry="10.2" fill="none" stroke="url(#reliefSheen)" stroke-width="1.4"/>
+
+  <!-- Stamped Inner Basin -->
+  <ellipse cx="32" cy="21.5" rx="11" ry="8" fill="#58250C" opacity="0.5"/>
+
+  <!-- Specular Reflection / Chocolate Temper Glare -->
+  <path d="M 20,18 C 24,11 39,11 44,17" fill="none" stroke="#BD7243" stroke-width="1.3" stroke-linecap="round" opacity="0.65"/>
+
+  <!-- CAD Crosshair Spark (Top Right) -->
+  <path d="M49 8 L55 8 M52 5 L52 11" stroke="url(#goldSheen)" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

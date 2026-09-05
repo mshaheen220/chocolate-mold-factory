@@ -18,6 +18,20 @@ export default {
           950: "#180d08",
         },
       },
+      keyframes: {
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(4px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        drip: {
+          "0%, 100%": { transform: "translateY(0)", opacity: "0.4" },
+          "50%": { transform: "translateY(7px)", opacity: "1" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.4s ease-out",
+        drip: "drip 1.4s ease-in-out infinite",
+      },
     },
   },
   plugins: [],

@@ -3,6 +3,7 @@ import { generateModel } from "./api/client";
 import { ActionBar } from "./components/ActionBar";
 import { Sidebar } from "./components/Sidebar";
 import { TabSwitcher } from "./components/TabSwitcher";
+import { GeneratingOverlay } from "./components/viewer/GeneratingOverlay";
 import { STLViewer } from "./components/viewer/STLViewer";
 import { TokenLayoutPreview } from "./components/viewer/TokenLayoutPreview";
 import { defaultParams, isTokenMode, medallionFields, moldBoxFields } from "./paramSchemas";
@@ -114,9 +115,12 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen flex-col bg-cocoa-950">
-      <header className="border-b border-cocoa-800 px-4 py-3">
-        <h1 className="text-lg font-bold tracking-tight text-cocoa-50">🍫 Chocolate Mold Factory</h1>
-        <p className="text-xs text-cocoa-400">Configure, preview, and generate 3D-printable mold assets.</p>
+      <header className="flex items-center gap-2 border-b border-cocoa-800 px-4 py-3">
+        <img src="/favicon2.svg" alt="" className="h-7 w-7 rounded-md" />
+        <div>
+          <h1 className="text-lg font-bold tracking-tight text-cocoa-50">Chocolate Mold Factory</h1>
+          <p className="text-xs text-cocoa-400">Configure, preview, and generate 3D-printable mold assets.</p>
+        </div>
       </header>
 
       <div className="min-h-0 flex-1">
@@ -157,11 +161,12 @@ export default function App() {
               ) : (
                 <STLViewer url={modelUrl} />
               )}
-              {modelUrl && modelQuality === "draft" && (
+              {modelUrl && modelQuality === "draft" && !isPreviewing && !isRendering && (
                 <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-amber-600/60 bg-amber-950/80 px-3 py-1 text-xs font-medium text-amber-200 shadow">
                   Draft preview (low facet count) — Full Render for print-quality output
                 </div>
               )}
+              {(isPreviewing || isRendering) && <GeneratingOverlay quality={isPreviewing ? "draft" : "final"} />}
             </div>
             <ActionBar
               onPreview={handlePreview}
