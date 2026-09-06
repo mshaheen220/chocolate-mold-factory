@@ -1,6 +1,6 @@
 {
   "name": "chocolate-mold-factory",
-  "version": "2.1.0",
+  "version": "2.2.1",
   "private": true,
   "description": "Visual UI to configure, preview, and generate 3D-printable silicone mold boxes and chocolate medallions via OpenSCAD.",
   "workspaces": [

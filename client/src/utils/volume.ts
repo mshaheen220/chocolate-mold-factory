@@ -16,7 +16,7 @@ function roundedRectArea(width: number, height: number, cornerRadius: number): n
  * every side, mirroring offset(delta=-inset) - used to compute border
  * ring areas as the difference of two inset shapes.
  */
-function tokenShapeArea(
+export function tokenShapeArea(
   shape: string,
   size: number,
   length: number,
@@ -32,6 +32,25 @@ function tokenShapeArea(
   }
   const r = Math.max(0, cornerRadius - insetOnEachSide);
   return roundedRectArea(w, h, r);
+}
+
+/** Outline perimeter of the token's own footprint, for estimating how
+ * much outer-wall shell a slice of it would need. */
+export function tokenShapePerimeter(shape: string, size: number, length: number, cornerRadius: number): number {
+  if (shape === "circle") return Math.PI * size;
+
+  if (shape === "oval") {
+    const a = size / 2;
+    const b = length / 2;
+    // Ramanujan's second approximation - well within estimate-grade accuracy.
+    const h = ((a - b) / (a + b)) ** 2;
+    return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+  }
+
+  // square / rectangle: straight edges plus the four rounded corners'
+  // combined arc length (4 quarter-circles = one full circle).
+  const r = Math.max(0, Math.min(cornerRadius, size / 2, length / 2));
+  return 2 * (size - 2 * r) + 2 * (length - 2 * r) + 2 * Math.PI * r;
 }
 
 export interface VolumeBreakdown {
@@ -124,4 +143,90 @@ export function computeTokenVolume(
     reliefVolumeMm3,
     totalVolumeMm3: Math.max(0, baseVolumeMm3 + borderVolumeMm3 + reliefVolumeMm3),
   };
+}
+
+// Mirrors the values shown in printRecommendations.ts (nozzle, walls, top
+// shell layers, layer height, infill) - kept as separate constants here
+// rather than parsed from those display strings, so update both places if
+// the recommendation changes.
+const NOZZLE_DIAMETER_MM = 0.2;
+const WALL_COUNT = 4; // upper end of the recommended 3-4 perimeters
+const SHELL_LAYERS = 7; // midpoint of the recommended 6-8 top shell layers
+const LAYER_HEIGHT_MM = 0.09; // midpoint of the recommended 0.08-0.10mm
+const INFILL_FRACTION = 0.3; // matches the recommended 30% gyroid infill
+
+/**
+ * Estimates how much of a token's total volume actually becomes extruded
+ * filament, rather than assuming the whole solid volume prints at 100%
+ * density. A slicer keeps the outer walls and top/bottom shell fully
+ * solid regardless of infill setting; only the interior left over gets
+ * the (much lower) infill percentage. Treating the entire volume as solid
+ * would overstate filament usage by roughly 1/infill for anything with
+ * meaningful interior volume.
+ */
+export function estimateFilamentVolumeMm3(params: ParamValues, totalVolumeMm3: number): number {
+  const shape = String(params.token_shape);
+  const size = Number(params.token_size);
+  const length = shape === "oval" || shape === "rectangle" ? Number(params.token_length) : size;
+  const cornerRadius = Number(params.corner_radius) || 0;
+  const baseThickness = Number(params.base_thickness);
+
+  const footprintArea = tokenShapeArea(shape, size, length, cornerRadius);
+  const perimeter = tokenShapePerimeter(shape, size, length, cornerRadius);
+  // The relief bump normally sits inset from the token's edge rather than
+  // running along the outer wall, so only base_thickness - not the relief
+  // height on top of it - contributes to the *outer* wall's height.
+  const outerWallHeight = baseThickness;
+
+  const wallThickness = WALL_COUNT * NOZZLE_DIAMETER_MM;
+  const shellThickness = SHELL_LAYERS * LAYER_HEIGHT_MM;
+
+  const lateralShellVolume = perimeter * outerWallHeight * wallThickness;
+  const topAndBottomShellVolume = footprintArea * shellThickness * 2;
+  const shellVolume = Math.min(totalVolumeMm3, lateralShellVolume + topAndBottomShellVolume);
+
+  const interiorVolume = Math.max(0, totalVolumeMm3 - shellVolume);
+  return shellVolume + interiorVolume * INFILL_FRACTION;
+}
+
+/**
+ * Volume of silicone (mm^3) needed to pour a mold around the current
+ * token grid, mirroring mold_box() / adjustable_frame_preview() in
+ * medallion.scad: the cavity above the floor, minus the volume the token
+ * grid itself displaces (silicone doesn't fill where the masters already
+ * are). Returns 0 for render modes with no pour cavity at all
+ * (single_token, adjustable_frame_strip/batch).
+ */
+export function estimateSiliconePourVolumeMm3(params: ParamValues, singleTokenVolumeMm3: number): number {
+  const renderMode = String(params.render_mode);
+  if (renderMode !== "reusable_mold_box" && renderMode !== "adjustable_frame_preview") {
+    return 0;
+  }
+
+  const shape = String(params.token_shape);
+  const tokenSize = Number(params.token_size);
+  const tokenLength = shape === "oval" || shape === "rectangle" ? Number(params.token_length) : tokenSize;
+  const spacing = Number(params.spacing);
+  const gridX = Number(params.grid_x);
+  const gridY = Number(params.grid_y);
+  const outerMargin = Number(params.outer_margin);
+  const siliconeDepth = Number(params.silicone_depth);
+
+  const gridExtent = (count: number, size: number) => count * size + (count - 1) * spacing;
+  const innerW = gridExtent(gridX, tokenSize) + 2 * outerMargin;
+  const innerH = gridExtent(gridY, tokenLength) + 2 * outerMargin;
+
+  // reusable_mold_box's wall (and therefore its cavity) rises above the
+  // floor by base+relief+silicone_depth; the adjustable frame's wall
+  // height *is* silicone_depth directly (see frame_strip_solid()).
+  const cavityHeight =
+    renderMode === "reusable_mold_box"
+      ? Number(params.base_thickness) + Number(params.relief_height) + siliconeDepth
+      : siliconeDepth;
+
+  const cavityVolume = innerW * innerH * cavityHeight;
+  const tokenCount = Math.max(1, Math.round(gridX * gridY));
+  const displacedVolume = tokenCount * singleTokenVolumeMm3;
+
+  return Math.max(0, cavityVolume - displacedVolume);
 }

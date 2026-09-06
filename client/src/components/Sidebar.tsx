@@ -1,7 +1,7 @@
 import { isTokenMode, type TokenPreset } from "../paramSchemas";
 import type { Field, ParamValues, Workflow } from "../types";
 import type { SvgNaturalSize } from "../utils/svg";
-import { ChocolateCostEstimate } from "./ChocolateCostEstimate";
+import { CostEstimate } from "./CostEstimate";
 import { ParameterCard } from "./ParameterCard";
 import { PrintReferenceCard } from "./PrintReferenceCard";
 import { FieldRenderer } from "./FieldRenderer";
@@ -107,8 +107,8 @@ export function Sidebar({
       </ParameterCard>
 
       {workflow === "medallion" && isTokenMode(params) && (
-        <ParameterCard title="Chocolate Cost Estimate" defaultOpen={false}>
-          <ChocolateCostEstimate params={params} svgNaturalSize={svgNaturalSize} svgFillRatio={svgFillRatio} />
+        <ParameterCard title="Cost Estimate" defaultOpen={false}>
+          <CostEstimate params={params} svgNaturalSize={svgNaturalSize} svgFillRatio={svgFillRatio} />
         </ParameterCard>
       )}
 
