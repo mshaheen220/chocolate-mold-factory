@@ -1,40 +1,51 @@
 import { useEffect, useState } from "react";
-import { shuffleIndices, TIPS, type TipCategory } from "../tips";
+import { useTips } from "../hooks/useTips";
+import { shuffleIndices } from "../tips";
 
-const CATEGORY_LABELS: Record<TipCategory, string> = {
+const CATEGORY_LABELS: Record<string, string> = {
   generating: "Generating",
   slicing: "Slicing",
   printing: "Printing",
 };
 
-const CATEGORY_ICONS: Record<TipCategory, string> = {
+const CATEGORY_ICONS: Record<string, string> = {
   generating: "🎛️",
   slicing: "🔪",
   printing: "🖨️",
 };
 
-const CATEGORY_BADGE_STYLES: Record<TipCategory, string> = {
+const CATEGORY_BADGE_STYLES: Record<string, string> = {
   generating: "border-sky-700/60 bg-sky-900/50 text-sky-200",
   slicing: "border-emerald-700/60 bg-emerald-900/50 text-emerald-200",
   printing: "border-amber-700/60 bg-amber-900/50 text-amber-200",
 };
+const DEFAULT_BADGE_STYLE = "border-cocoa-700/60 bg-cocoa-900/50 text-cocoa-200";
 
 const AUTOPLAY_INTERVAL_MS = 6000;
 
 export function TipsPanel() {
+  const { tips } = useTips();
   const [isOpen, setIsOpen] = useState(true);
-  const [order, setOrder] = useState<number[]>(() => shuffleIndices(TIPS.length));
+  const [order, setOrder] = useState<number[]>([]);
   const [position, setPosition] = useState(0);
   const [autoplay, setAutoplay] = useState(true);
 
-  const currentTip = TIPS[order[position]];
+  // Tips arrive async from the API - (re)shuffle once they're in, rather
+  // than shuffling an empty list on mount.
+  useEffect(() => {
+    if (tips.length === 0) return;
+    setOrder(shuffleIndices(tips.length));
+    setPosition(0);
+  }, [tips.length]);
+
+  const currentTip = tips[order[position]];
 
   const goNext = () => {
     setPosition((p) => {
       if (p + 1 >= order.length) {
         // Full tour complete - reshuffle for the next lap rather than
         // looping the same order, so it doesn't feel mechanically repetitive.
-        setOrder(shuffleIndices(TIPS.length));
+        setOrder(shuffleIndices(tips.length));
         return 0;
       }
       return p + 1;
@@ -49,11 +60,15 @@ export function TipsPanel() {
     // Collapsing shouldn't leave the interval quietly advancing a tip
     // nobody can see - pause while closed, resume from wherever it left
     // off once reopened (the autoplay toggle itself is untouched).
-    if (!autoplay || !isOpen) return;
+    if (!autoplay || !isOpen || order.length === 0) return;
     const timer = setInterval(goNext, AUTOPLAY_INTERVAL_MS);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoplay, isOpen, order]);
+
+  if (!currentTip) {
+    return null;
+  }
 
   if (!isOpen) {
     return (
@@ -70,11 +85,11 @@ export function TipsPanel() {
   return (
     <div className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-cocoa-800 bg-cocoa-900/60 py-2 pl-3 pr-2">
       <span
-        title={CATEGORY_LABELS[currentTip.category]}
-        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-sm ${CATEGORY_BADGE_STYLES[currentTip.category]}`}
+        title={CATEGORY_LABELS[currentTip.category] ?? currentTip.category}
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-sm ${CATEGORY_BADGE_STYLES[currentTip.category] ?? DEFAULT_BADGE_STYLE}`}
       >
-        <span aria-hidden>{CATEGORY_ICONS[currentTip.category]}</span>
-        <span className="sr-only">{CATEGORY_LABELS[currentTip.category]}</span>
+        <span aria-hidden>{CATEGORY_ICONS[currentTip.category] ?? "💡"}</span>
+        <span className="sr-only">{CATEGORY_LABELS[currentTip.category] ?? currentTip.category}</span>
       </span>
 
       {/* min-h reserves space for a full 2 lines (text-xs/leading-relaxed)

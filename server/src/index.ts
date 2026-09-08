@@ -9,6 +9,7 @@ import { startCleanupScheduler, sweepTempArtifacts } from "./lib/cleanup";
 import { generateRouter } from "./routes/generate";
 import { healthRouter } from "./routes/health";
 import { outputRouter } from "./routes/output";
+import { tipsRouter } from "./routes/tips";
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use("/api", healthRouter);
 app.use("/api", generateRouter);
 app.use("/api", outputRouter);
+app.use("/api", tipsRouter);
 
 // Serve the built frontend in production (single-container deployment).
 if (fs.existsSync(config.paths.clientDist)) {

@@ -47,3 +47,17 @@ export async function fetchHealth(): Promise<HealthResponse> {
   const res = await fetch("/api/health");
   return res.json();
 }
+
+export interface Tip {
+  category: string;
+  text: string;
+}
+
+export async function fetchTips(): Promise<Tip[]> {
+  const res = await fetch("/api/tips");
+  if (!res.ok) {
+    throw new Error(`Request failed with status ${res.status}`);
+  }
+  const body = await res.json();
+  return body.tips as Tip[];
+}

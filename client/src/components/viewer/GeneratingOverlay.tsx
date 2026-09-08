@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { pickRandomTipIndex, TIPS } from "../../tips";
+import { useTips } from "../../hooks/useTips";
+import { pickRandomTipIndex } from "../../tips";
 
 interface GeneratingOverlayProps {
   quality: "draft" | "final";
@@ -8,8 +9,9 @@ interface GeneratingOverlayProps {
 const TIP_INTERVAL_MS = 6200;
 
 export function GeneratingOverlay({ quality }: GeneratingOverlayProps) {
+  const { tips } = useTips();
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [tipIndex, setTipIndex] = useState(() => pickRandomTipIndex());
+  const [tipIndex, setTipIndex] = useState<number | null>(null);
 
   // Elapsed-time counter resets whenever a new compile starts (quality can
   // flip between draft/final without the overlay unmounting).
@@ -20,12 +22,20 @@ export function GeneratingOverlay({ quality }: GeneratingOverlayProps) {
     return () => clearInterval(timer);
   }, [quality]);
 
+  // Tips arrive async - pick the first one once they're in.
   useEffect(() => {
+    if (tips.length > 0 && tipIndex === null) {
+      setTipIndex(pickRandomTipIndex(tips.length));
+    }
+  }, [tips.length, tipIndex]);
+
+  useEffect(() => {
+    if (tips.length === 0) return;
     const timer = setInterval(() => {
-      setTipIndex((current) => pickRandomTipIndex(current));
+      setTipIndex((current) => pickRandomTipIndex(tips.length, current ?? undefined));
     }, TIP_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, []);
+  }, [tips.length]);
 
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 bg-cocoa-950/98 backdrop-blur-md">
@@ -56,13 +66,15 @@ export function GeneratingOverlay({ quality }: GeneratingOverlayProps) {
         </p>
       </div>
 
-      <div
-        key={tipIndex}
-        className="max-w-sm animate-fade-in rounded-lg border border-cocoa-700 bg-cocoa-900 px-4 py-3 text-center text-xs leading-relaxed text-cocoa-100 shadow-lg"
-      >
-        <span className="font-semibold text-white">Tip: </span>
-        {TIPS[tipIndex].text}
-      </div>
+      {tipIndex !== null && (
+        <div
+          key={tipIndex}
+          className="max-w-sm animate-fade-in rounded-lg border border-cocoa-700 bg-cocoa-900 px-4 py-3 text-center text-xs leading-relaxed text-cocoa-100 shadow-lg"
+        >
+          <span className="font-semibold text-white">Tip: </span>
+          {tips[tipIndex].text}
+        </div>
+      )}
     </div>
   );
 }
