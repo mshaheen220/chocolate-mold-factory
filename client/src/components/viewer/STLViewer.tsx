@@ -2,7 +2,28 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { Billboard, Bounds, Grid, Line, Text, OrbitControls } from "@react-three/drei";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
+import { useTheme } from "../../hooks/useTheme";
 import { ViewerErrorBoundary } from "./ViewerErrorBoundary";
+
+// The 3D scene's colors are literal Three.js props, not CSS classes, so
+// they can't ride the cocoa CSS variables like the rest of the UI - kept
+// in sync with the cocoa ramp by hand instead.
+const SCENE_COLORS = {
+  dark: {
+    background: "#150d09",
+    cellColor: "#3a2a20",
+    sectionColor: "#5a4132",
+    tickLineColor: "#6f5137",
+    labelColor: "#c9a876",
+  },
+  light: {
+    background: "#f7ede2",
+    cellColor: "#ddc7a8",
+    sectionColor: "#b9895a",
+    tickLineColor: "#8a6a45",
+    labelColor: "#6b4a2a",
+  },
+} as const;
 
 interface ModelProps {
   url: string;
@@ -53,6 +74,8 @@ function pickTickStep(largestDimensionMm: number): number {
 
 interface RulerProps {
   largestDimensionMm: number;
+  tickLineColor: string;
+  labelColor: string;
 }
 
 /**
@@ -68,7 +91,7 @@ interface RulerProps {
  * tick `step` (not the total ruler span), so text stays legible instead of
  * ballooning for models that just happen to need a wider ruler.
  */
-function Ruler({ largestDimensionMm }: RulerProps) {
+function Ruler({ largestDimensionMm, tickLineColor, labelColor }: RulerProps) {
   const step = pickTickStep(largestDimensionMm);
   const modelHalf = largestDimensionMm / 2;
   const rulerOffset = modelHalf + step;
@@ -80,8 +103,6 @@ function Ruler({ largestDimensionMm }: RulerProps) {
     return values;
   }, [half, step]);
 
-  const tickLineColor = "#6f5137";
-  const labelColor = "#c9a876";
   const labelSize = Math.min(6, Math.max(1.2, step * 0.28));
   const tickMarkLength = step * 0.18;
   const labelGap = tickMarkLength * 2.4;
@@ -144,11 +165,13 @@ export function STLViewer({ url }: STLViewerProps) {
   // model has loaded.
   const [modelSize, setModelSize] = useState(80);
   const step = pickTickStep(modelSize);
+  const { theme } = useTheme();
+  const colors = SCENE_COLORS[theme];
 
   return (
     <div className="relative h-full w-full">
       <Canvas shadows camera={{ position: [90, 90, 90], fov: 40 }}>
-        <color attach="background" args={["#150d09"]} />
+        <color attach="background" args={[colors.background]} />
         <ambientLight intensity={0.55} />
         <directionalLight position={[120, 180, 100]} intensity={1.1} castShadow />
         <directionalLight position={[-100, 40, -80]} intensity={0.25} />
@@ -166,12 +189,12 @@ export function STLViewer({ url }: STLViewerProps) {
           position={[0, -0.01, 0]}
           cellSize={step}
           sectionSize={step * 5}
-          cellColor="#3a2a20"
-          sectionColor="#5a4132"
+          cellColor={colors.cellColor}
+          sectionColor={colors.sectionColor}
           fadeDistance={250}
           infiniteGrid
         />
-        <Ruler largestDimensionMm={modelSize} />
+        <Ruler largestDimensionMm={modelSize} tickLineColor={colors.tickLineColor} labelColor={colors.labelColor} />
         <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
       </Canvas>
       {!url && (

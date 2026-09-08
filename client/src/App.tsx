@@ -3,6 +3,7 @@ import { generateModel } from "./api/client";
 import { ActionBar } from "./components/ActionBar";
 import { Sidebar } from "./components/Sidebar";
 import { TabSwitcher } from "./components/TabSwitcher";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { TipsPanel } from "./components/TipsPanel";
 import { GeneratingOverlay } from "./components/viewer/GeneratingOverlay";
 import { STLViewer } from "./components/viewer/STLViewer";
@@ -159,8 +160,9 @@ export default function App() {
             <p className="text-xs text-cocoa-400">Configure, preview, and generate 3D-printable mold assets.</p>
           </div>
         </div>
-        <div className="flex min-w-0 flex-1 justify-end">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           <TipsPanel />
+          <ThemeToggle />
         </div>
       </header>
 

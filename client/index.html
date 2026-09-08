@@ -3,6 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Runs before first paint so a saved light-theme preference doesn't
+      // flash dark for a frame - the default (no key, or "dark") stays dark.
+      (function () {
+        try {
+          if (localStorage.getItem("theme") === "light") {
+            document.documentElement.setAttribute("data-theme", "light");
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon2.svg" />
     <title>Chocolate Mold Factory</title>
   </head>

@@ -4,18 +4,23 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Each shade reads from a CSS variable (see index.css) so the same
+        // cocoa-* classes used throughout the app automatically repaint for
+        // the light theme instead of needing dark:/light: variants on every
+        // usage. <alpha-value> keeps opacity modifiers (e.g. bg-cocoa-900/60)
+        // working.
         cocoa: {
-          50: "#fbf5f0",
-          100: "#f2e3d5",
-          200: "#e2c3a8",
-          300: "#cf9c74",
-          400: "#bc7a4d",
-          500: "#a5602f",
-          600: "#8a4c26",
-          700: "#6f3c22",
-          800: "#4a2a1c",
-          900: "#2c1a12",
-          950: "#180d08",
+          50: "rgb(var(--color-cocoa-50) / <alpha-value>)",
+          100: "rgb(var(--color-cocoa-100) / <alpha-value>)",
+          200: "rgb(var(--color-cocoa-200) / <alpha-value>)",
+          300: "rgb(var(--color-cocoa-300) / <alpha-value>)",
+          400: "rgb(var(--color-cocoa-400) / <alpha-value>)",
+          500: "rgb(var(--color-cocoa-500) / <alpha-value>)",
+          600: "rgb(var(--color-cocoa-600) / <alpha-value>)",
+          700: "rgb(var(--color-cocoa-700) / <alpha-value>)",
+          800: "rgb(var(--color-cocoa-800) / <alpha-value>)",
+          900: "rgb(var(--color-cocoa-900) / <alpha-value>)",
+          950: "rgb(var(--color-cocoa-950) / <alpha-value>)",
         },
       },
       keyframes: {

@@ -2,6 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+  /* Dark theme (default, unchanged) - r g b triplets, one per cocoa shade. */
+  --color-cocoa-50: 251 245 240;
+  --color-cocoa-100: 242 227 213;
+  --color-cocoa-200: 226 195 168;
+  --color-cocoa-300: 207 156 116;
+  --color-cocoa-400: 188 122 77;
+  --color-cocoa-500: 165 96 47;
+  --color-cocoa-600: 138 76 38;
+  --color-cocoa-700: 111 60 34;
+  --color-cocoa-800: 74 42 28;
+  --color-cocoa-900: 44 26 18;
+  --color-cocoa-950: 24 13 8;
+}
+
+/* Light theme - the same cocoa ramp, mirrored (50<->950, 100<->900, ...)
+   so every existing bg-cocoa-950/text-cocoa-100/etc. usage keeps the same
+   "background vs. foreground" relationship instead of needing per-usage
+   dark:/light: variants. */
+[data-theme="light"] {
+  color-scheme: light;
+  --color-cocoa-50: 24 13 8;
+  --color-cocoa-100: 44 26 18;
+  --color-cocoa-200: 74 42 28;
+  --color-cocoa-300: 111 60 34;
+  --color-cocoa-400: 138 76 38;
+  --color-cocoa-500: 165 96 47;
+  --color-cocoa-600: 188 122 77;
+  --color-cocoa-700: 207 156 116;
+  --color-cocoa-800: 226 195 168;
+  --color-cocoa-900: 242 227 213;
+  --color-cocoa-950: 251 245 240;
+}
+
 html,
 body,
 #root {
@@ -15,7 +50,7 @@ body {
 input[type="range"] {
   height: 4px;
   border-radius: 9999px;
-  background: theme("colors.cocoa.800");
+  background: rgb(var(--color-cocoa-800));
 }
 
 ::-webkit-scrollbar {
@@ -26,6 +61,6 @@ input[type="range"] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: theme("colors.cocoa.700");
+  background: rgb(var(--color-cocoa-700));
   border-radius: 9999px;
 }
