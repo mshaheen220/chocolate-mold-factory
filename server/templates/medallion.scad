@@ -17,6 +17,8 @@ fast_preview = false;
 /* [Image & Asset Settings] */
 svg_path  = "";  // absolute path to the uploaded graphic.svg ("" = no relief)
 svg_scale = 1;
+svg_offset_x = 0; // mm, applied after scaling: +X = right
+svg_offset_y = 0; // mm, applied after scaling: +Y = up
 
 /* [Piece Geometry] */
 token_shape    = "circle"; // circle | square | oval | rectangle
@@ -96,8 +98,9 @@ module svg_relief() {
   if (svg_path != "") {
     taper_ratio = max(0.05, 1 - (2 * relief_height * tan(draft_angle) / token_size));
     linear_extrude(height = relief_height, scale = taper_ratio)
-      scale(svg_scale)
-        svg_shape_2d();
+      translate([svg_offset_x, svg_offset_y])
+        scale(svg_scale)
+          svg_shape_2d();
   }
 }
 

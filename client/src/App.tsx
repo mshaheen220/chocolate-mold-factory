@@ -10,6 +10,7 @@ import { STLViewer } from "./components/viewer/STLViewer";
 import { TokenLayoutPreview } from "./components/viewer/TokenLayoutPreview";
 import { autoFitScaleForToken, defaultParams, isTokenMode, medallionFields, moldBoxFields, type TokenPreset } from "./paramSchemas";
 import type { Field, ParamValues, Quality, Workflow } from "./types";
+import { exportAppSettings, readAppSettingsFile } from "./utils/appSettings";
 import { measureSvgFillRatio, readSvgNaturalSize, type SvgNaturalSize } from "./utils/svg";
 
 // Matches the server's DEFAULT_FINAL_FACET_COUNT (server/src/lib/validation.ts).
@@ -30,6 +31,7 @@ export default function App() {
   const [modelUrl, setModelUrl] = useState<string | null>(null);
   const [modelQuality, setModelQuality] = useState<Quality | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -147,6 +149,35 @@ export default function App() {
   const showLayoutPreview =
     workflow === "medallion" && svgFile && svgPreviewUrl && svgNaturalSize && isTokenMode(params);
 
+  const handleSaveSettings = useCallback(
+    (fileName: string) => {
+      exportAppSettings({ workflow, renderDetail, medallionParams, moldBoxParams }, fileName);
+    },
+    [workflow, renderDetail, medallionParams, moldBoxParams],
+  );
+
+  const handleImportSettings = useCallback(async (file: File) => {
+    try {
+      const settings = await readAppSettingsFile(file);
+      // Merge over the current schema's defaults rather than applying the
+      // imported params verbatim - a file saved before a field existed
+      // (e.g. the SVG offset fields) would otherwise leave that param
+      // undefined instead of falling back to its default.
+      setMedallionParams({ ...defaultParams(medallionFields), ...settings.medallionParams });
+      setMoldBoxParams({ ...defaultParams(moldBoxFields), ...settings.moldBoxParams });
+      setRenderDetail(settings.renderDetail);
+      setWorkflow(settings.workflow);
+      // The previous render/download no longer reflects the newly loaded
+      // params.
+      setModelUrl(null);
+      setModelQuality(null);
+      setDownloadUrl(null);
+      setErrorMessage(null);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to import settings");
+    }
+  }, []);
+
   return (
     <div className="flex h-screen w-screen flex-col bg-cocoa-950">
       <header className="flex items-center gap-4 border-b border-cocoa-800 px-4 py-3">
@@ -206,6 +237,8 @@ export default function App() {
                   svgUrl={svgPreviewUrl}
                   svgNaturalSize={svgNaturalSize}
                   svgScale={Number(params.svg_scale)}
+                  svgOffsetX={Number(params.svg_offset_x)}
+                  svgOffsetY={Number(params.svg_offset_y)}
                 />
               ) : (
                 <STLViewer url={modelUrl} />
@@ -218,12 +251,16 @@ export default function App() {
               {(isPreviewing || isRendering) && <GeneratingOverlay quality={isPreviewing ? "draft" : "final"} />}
             </div>
             <ActionBar
+              onSaveSettings={handleSaveSettings}
+              onImportSettings={handleImportSettings}
               onPreview={handlePreview}
               onRender={handleRender}
               isPreviewing={isPreviewing}
               isRendering={isRendering}
               downloadUrl={downloadUrl}
               errorMessage={errorMessage}
+              fileName={fileName}
+              onFileNameChange={setFileName}
             />
           </main>
         </div>

@@ -153,7 +153,7 @@ const NOZZLE_DIAMETER_MM = 0.2;
 const WALL_COUNT = 4; // upper end of the recommended 3-4 perimeters
 const SHELL_LAYERS = 7; // midpoint of the recommended 6-8 top shell layers
 const LAYER_HEIGHT_MM = 0.09; // midpoint of the recommended 0.08-0.10mm
-const INFILL_FRACTION = 0.3; // matches the recommended 30% gyroid infill
+const INFILL_FRACTION = 0.04; // matches the recommended 4% rectilinear infill
 
 /**
  * Estimates how much of a token's total volume actually becomes extruded

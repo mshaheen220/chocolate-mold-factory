@@ -12,6 +12,8 @@ interface TokenLayoutPreviewProps {
   svgUrl: string;
   svgNaturalSize: SvgNaturalSize;
   svgScale: number;
+  svgOffsetX: number;
+  svgOffsetY: number;
 }
 
 interface ShapeStyle {
@@ -66,6 +68,8 @@ export function TokenLayoutPreview({
   svgUrl,
   svgNaturalSize,
   svgScale,
+  svgOffsetX,
+  svgOffsetY,
 }: TokenLayoutPreviewProps) {
   const clipId = useId();
   const effLength = tokenShape === "oval" || tokenShape === "rectangle" ? tokenLength : tokenSize;
@@ -75,6 +79,10 @@ export function TokenLayoutPreview({
 
   const imgWidth = svgNaturalSize.width * svgScale;
   const imgHeight = svgNaturalSize.height * svgScale;
+  // SVG y grows downward but svg_offset_y (matching the OpenSCAD template)
+  // is "+Y = up", so it's subtracted here rather than added.
+  const imgX = -imgWidth / 2 + svgOffsetX;
+  const imgY = -imgHeight / 2 - svgOffsetY;
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6">
@@ -100,7 +108,7 @@ export function TokenLayoutPreview({
         />
 
         <g clipPath={`url(#${clipId})`}>
-          <image href={svgUrl} x={-imgWidth / 2} y={-imgHeight / 2} width={imgWidth} height={imgHeight} />
+          <image href={svgUrl} x={imgX} y={imgY} width={imgWidth} height={imgHeight} />
         </g>
 
         {borderStyle !== "none" && (

@@ -6,8 +6,8 @@ export interface SlicerSetting {
 
 export const NOZZLE_RECOMMENDATION: SlicerSetting = {
   setting: "Nozzle Size",
-  value: "0.2mm",
-  why: "Resolves fine detail - like individual hair or beard strands - that a standard 0.4mm nozzle blobs together or skips entirely.",
+  value: "0.2mm (0.4mm if light on detail)",
+  why: "Resolves fine detail - like individual hair or beard strands - that a standard 0.4mm nozzle blobs together or skips entirely. If the design doesn't have much fine detail to lose, switch to a 0.4mm nozzle for a faster print.",
 };
 
 export const FILAMENT_RECOMMENDATION: SlicerSetting = {
@@ -44,8 +44,8 @@ export const SLICER_SETTINGS: SlicerSetting[] = [
   },
   {
     setting: "Infill",
-    value: "30% Gyroid",
-    why: "Gives the master enough rigidity to resist flexing under the weight of poured silicone.",
+    value: "4% rectilinear",
+    why: "A mold master doesn't need much strength - just enough to resist flexing under poured silicone. Rectilinear spreads that support evenly across the surface, and a low percentage keeps print time and material down.",
   },
   {
     setting: "Ironing",

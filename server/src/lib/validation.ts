@@ -31,6 +31,8 @@ export const medallionSchema: ParamSchema = {
     default: "single_token",
   },
   svg_scale: { type: "number", min: 0.01, max: 20, default: 1 },
+  svg_offset_x: { type: "number", min: -150, max: 150, default: 0 },
+  svg_offset_y: { type: "number", min: -150, max: 150, default: 0 },
   token_shape: { type: "enum", options: ["circle", "square", "oval", "rectangle"], default: "circle" },
   token_size: { type: "number", min: 5, max: 300, default: 40 },
   token_length: { type: "number", min: 5, max: 300, default: 60 },
