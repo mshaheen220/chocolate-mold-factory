@@ -1,56 +1,22 @@
 import type { ParamValues } from "../types";
 import type { SvgNaturalSize } from "./svg";
 
-/** Area of a rounded rectangle (width x height, corner radius r) - exact
- * match for the offset(r)/offset(-r) rounding trick in medallion.scad:
- * area = W*H - r^2*(4-pi). */
-function roundedRectArea(width: number, height: number, cornerRadius: number): number {
-  if (width <= 0 || height <= 0) return 0;
-  const r = Math.max(0, Math.min(cornerRadius, width / 2, height / 2));
-  return width * height - r * r * (4 - Math.PI);
-}
-
 /**
- * Area of the token's own outline, mirroring token_base_2d() in
- * medallion.scad. `insetOnEachSide` shrinks the shape uniformly inward on
- * every side, mirroring offset(delta=-inset) - used to compute border
- * ring areas as the difference of two inset shapes.
+ * Area of the coin's own circular outline, mirroring token_base_2d() in
+ * medallion.scad. `insetOnEachSide` shrinks the circle uniformly inward,
+ * mirroring offset(delta=-inset) - used to compute border ring areas as
+ * the difference of two inset circles.
  */
-export function tokenShapeArea(
-  shape: string,
-  size: number,
-  length: number,
-  cornerRadius: number,
-  insetOnEachSide = 0,
-): number {
-  const w = size - 2 * insetOnEachSide;
-  const h = length - 2 * insetOnEachSide;
-  if (w <= 0 || h <= 0) return 0;
-
-  if (shape === "circle" || shape === "oval") {
-    return (Math.PI * w * h) / 4; // ellipse area = pi * rx * ry = pi * (w/2) * (h/2)
-  }
-  const r = Math.max(0, cornerRadius - insetOnEachSide);
-  return roundedRectArea(w, h, r);
+export function tokenShapeArea(size: number, insetOnEachSide = 0): number {
+  const diameter = size - 2 * insetOnEachSide;
+  if (diameter <= 0) return 0;
+  return (Math.PI * diameter * diameter) / 4;
 }
 
-/** Outline perimeter of the token's own footprint, for estimating how
- * much outer-wall shell a slice of it would need. */
-export function tokenShapePerimeter(shape: string, size: number, length: number, cornerRadius: number): number {
-  if (shape === "circle") return Math.PI * size;
-
-  if (shape === "oval") {
-    const a = size / 2;
-    const b = length / 2;
-    // Ramanujan's second approximation - well within estimate-grade accuracy.
-    const h = ((a - b) / (a + b)) ** 2;
-    return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
-  }
-
-  // square / rectangle: straight edges plus the four rounded corners'
-  // combined arc length (4 quarter-circles = one full circle).
-  const r = Math.max(0, Math.min(cornerRadius, size / 2, length / 2));
-  return 2 * (size - 2 * r) + 2 * (length - 2 * r) + 2 * Math.PI * r;
+/** Outline perimeter of the coin's own footprint, for estimating how much
+ * outer-wall shell a slice of it would need. */
+export function tokenShapePerimeter(size: number): number {
+  return Math.PI * size;
 }
 
 export interface VolumeBreakdown {
@@ -61,10 +27,10 @@ export interface VolumeBreakdown {
 }
 
 /**
- * Estimates the volume of chocolate (in mm^3) a single token/coin cavity
- * would take to fill, from the same geometry the OpenSCAD template
- * generates: a base slab, an optional raised border, and an optional
- * relief bump from an uploaded graphic.
+ * Estimates the volume of chocolate (in mm^3) a single coin cavity would
+ * take to fill, from the same geometry the OpenSCAD template generates: a
+ * base slab, an optional raised border, and an optional relief bump from
+ * an uploaded graphic.
  *
  * The relief is the one inherently approximate term: `svgFillRatio` (from
  * measureSvgFillRatio) is the fraction of the graphic's own bounding box
@@ -76,16 +42,13 @@ export function computeTokenVolume(
   svgNaturalSize: SvgNaturalSize | null,
   svgFillRatio: number | null,
 ): VolumeBreakdown {
-  const shape = String(params.token_shape);
   const size = Number(params.token_size);
-  const length = shape === "oval" || shape === "rectangle" ? Number(params.token_length) : size;
-  const cornerRadius = Number(params.corner_radius) || 0;
   const baseThickness = Number(params.base_thickness);
   const reliefHeight = Number(params.relief_height);
   const draftAngle = Number(params.draft_angle);
   const borderStyle = String(params.border_style);
 
-  const baseArea = tokenShapeArea(shape, size, length, cornerRadius);
+  const baseArea = tokenShapeArea(size);
   const baseVolumeMm3 = baseArea * baseThickness;
 
   // Border volume - mirrors ring_2d() / beaded_ring_2d() in medallion.scad.
@@ -105,9 +68,7 @@ export function computeTokenVolume(
       crossSectionArea = beadCount * Math.PI * (beadSize / 2) ** 2;
     } else {
       const borderWidth = Number(params.border_width);
-      const ringArea = (inset: number) =>
-        tokenShapeArea(shape, size, length, cornerRadius, inset) -
-        tokenShapeArea(shape, size, length, cornerRadius, inset + borderWidth);
+      const ringArea = (inset: number) => tokenShapeArea(size, inset) - tokenShapeArea(size, inset + borderWidth);
 
       crossSectionArea = Math.max(0, ringArea(borderInset));
       if (borderStyle === "double") {
@@ -165,14 +126,11 @@ const INFILL_FRACTION = 0.04; // matches the recommended 4% rectilinear infill
  * meaningful interior volume.
  */
 export function estimateFilamentVolumeMm3(params: ParamValues, totalVolumeMm3: number): number {
-  const shape = String(params.token_shape);
   const size = Number(params.token_size);
-  const length = shape === "oval" || shape === "rectangle" ? Number(params.token_length) : size;
-  const cornerRadius = Number(params.corner_radius) || 0;
   const baseThickness = Number(params.base_thickness);
 
-  const footprintArea = tokenShapeArea(shape, size, length, cornerRadius);
-  const perimeter = tokenShapePerimeter(shape, size, length, cornerRadius);
+  const footprintArea = tokenShapeArea(size);
+  const perimeter = tokenShapePerimeter(size);
   // The relief bump normally sits inset from the token's edge rather than
   // running along the outer wall, so only base_thickness - not the relief
   // height on top of it - contributes to the *outer* wall's height.
@@ -187,46 +145,4 @@ export function estimateFilamentVolumeMm3(params: ParamValues, totalVolumeMm3: n
 
   const interiorVolume = Math.max(0, totalVolumeMm3 - shellVolume);
   return shellVolume + interiorVolume * INFILL_FRACTION;
-}
-
-/**
- * Volume of silicone (mm^3) needed to pour a mold around the current
- * token grid, mirroring mold_box() / adjustable_frame_preview() in
- * medallion.scad: the cavity above the floor, minus the volume the token
- * grid itself displaces (silicone doesn't fill where the masters already
- * are). Returns 0 for render modes with no pour cavity at all
- * (single_token, adjustable_frame_strip/batch).
- */
-export function estimateSiliconePourVolumeMm3(params: ParamValues, singleTokenVolumeMm3: number): number {
-  const renderMode = String(params.render_mode);
-  if (renderMode !== "reusable_mold_box" && renderMode !== "adjustable_frame_preview") {
-    return 0;
-  }
-
-  const shape = String(params.token_shape);
-  const tokenSize = Number(params.token_size);
-  const tokenLength = shape === "oval" || shape === "rectangle" ? Number(params.token_length) : tokenSize;
-  const spacing = Number(params.spacing);
-  const gridX = Number(params.grid_x);
-  const gridY = Number(params.grid_y);
-  const outerMargin = Number(params.outer_margin);
-  const siliconeDepth = Number(params.silicone_depth);
-
-  const gridExtent = (count: number, size: number) => count * size + (count - 1) * spacing;
-  const innerW = gridExtent(gridX, tokenSize) + 2 * outerMargin;
-  const innerH = gridExtent(gridY, tokenLength) + 2 * outerMargin;
-
-  // reusable_mold_box's wall (and therefore its cavity) rises above the
-  // floor by base+relief+silicone_depth; the adjustable frame's wall
-  // height *is* silicone_depth directly (see frame_strip_solid()).
-  const cavityHeight =
-    renderMode === "reusable_mold_box"
-      ? Number(params.base_thickness) + Number(params.relief_height) + siliconeDepth
-      : siliconeDepth;
-
-  const cavityVolume = innerW * innerH * cavityHeight;
-  const tokenCount = Math.max(1, Math.round(gridX * gridY));
-  const displacedVolume = tokenCount * singleTokenVolumeMm3;
-
-  return Math.max(0, cavityVolume - displacedVolume);
 }

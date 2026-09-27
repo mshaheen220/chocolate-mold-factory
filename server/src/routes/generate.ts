@@ -10,11 +10,10 @@ import { normalizeSvgForOpenScad } from "../lib/svg";
 import {
   DRAFT_BEAD_COUNT_CAP,
   DRAFT_FACET_COUNT,
-  isWorkflow,
+  medallionSchema,
   parseQuality,
   parseRenderDetail,
-  schemasByWorkflow,
-  templateByWorkflow,
+  TEMPLATE_FILE,
   ValidationError,
   validateParams,
 } from "../lib/validation";
@@ -26,14 +25,7 @@ generateRouter.post("/generate", upload.single("file"), async (req, res) => {
   const uploadedFilePath = req.file?.path;
 
   try {
-    const { workflow } = req.body as { workflow?: string };
-    if (!isWorkflow(workflow)) {
-      res.status(400).json({ error: "workflow must be one of: medallion, mold_box" });
-      return;
-    }
-
-    const schema = schemasByWorkflow[workflow];
-    const params: ScadParams = validateParams(schema, req.body ?? {});
+    const params: ScadParams = validateParams(medallionSchema, req.body ?? {});
     const body = req.body as { quality?: string; render_detail?: string } | undefined;
     const quality = parseQuality(body?.quality);
     const renderOptions: RenderOptions = {
@@ -45,21 +37,19 @@ generateRouter.post("/generate", upload.single("file"), async (req, res) => {
       params.bead_count = Math.min(params.bead_count, DRAFT_BEAD_COUNT_CAP);
     }
 
-    if (workflow === "medallion") {
-      if (req.file) {
-        if (path.extname(req.file.filename).toLowerCase() !== ".svg") {
-          res.status(400).json({ error: "Uploaded file must be an .svg graphic" });
-          return;
-        }
-        const rawSvg = await fs.readFile(req.file.path, "utf8");
-        await fs.writeFile(req.file.path, normalizeSvgForOpenScad(rawSvg), "utf8");
-        params.svg_path = req.file.path;
-      } else {
-        params.svg_path = "";
+    if (req.file) {
+      if (path.extname(req.file.filename).toLowerCase() !== ".svg") {
+        res.status(400).json({ error: "Uploaded file must be an .svg graphic" });
+        return;
       }
+      const rawSvg = await fs.readFile(req.file.path, "utf8");
+      await fs.writeFile(req.file.path, normalizeSvgForOpenScad(rawSvg), "utf8");
+      params.svg_path = req.file.path;
+    } else {
+      params.svg_path = "";
     }
 
-    const templatePath = path.join(config.paths.templates, templateByWorkflow[workflow]);
+    const templatePath = path.join(config.paths.templates, TEMPLATE_FILE);
     const outputFileName = `${crypto.randomUUID()}.stl`;
     const outputPath = path.join(config.paths.output, outputFileName);
 

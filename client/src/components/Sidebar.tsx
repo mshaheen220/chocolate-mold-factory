@@ -1,5 +1,5 @@
-import { isTokenMode, type TokenPreset } from "../paramSchemas";
-import type { Field, ParamValues, Workflow } from "../types";
+import type { TokenPreset } from "../paramSchemas";
+import type { Field, ParamValues } from "../types";
 import type { SvgNaturalSize } from "../utils/svg";
 import { CostEstimate } from "./CostEstimate";
 import { ParameterCard } from "./ParameterCard";
@@ -17,7 +17,6 @@ const MIN_RENDER_DETAIL = 16;
 const MAX_RENDER_DETAIL = 180;
 
 interface SidebarProps {
-  workflow: Workflow;
   fields: Field[];
   params: ParamValues;
   onChange: (key: string, value: Field["default"]) => void;
@@ -34,12 +33,9 @@ interface SidebarProps {
 const GROUP_CARDS: { group: Field["group"]; title: string }[] = [
   { group: "geometry", title: "Geometry & Sizing" },
   { group: "border", title: "Border" },
-  { group: "cavity", title: "Mold Box Cavity" },
-  { group: "frame", title: "Adjustable Mold Frame" },
 ];
 
 export function Sidebar({
-  workflow,
   fields,
   params,
   onChange,
@@ -54,36 +50,32 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <div className="flex flex-col gap-4">
-      {workflow === "medallion" && (
-        <ParameterCard title="Asset Upload">
-          <FileDropzone
-            accept=".svg"
-            label="Graphic (SVG)"
-            file={svgFile}
-            previewUrl={svgPreviewUrl}
-            onFile={onSvgFile}
-          />
-          <p className="text-xs text-cocoa-400">
-            Optional — without a graphic, the token base shape alone is generated.
-          </p>
-        </ParameterCard>
-      )}
+      <ParameterCard title="Asset Upload">
+        <FileDropzone
+          accept=".svg"
+          label="Graphic (SVG)"
+          file={svgFile}
+          previewUrl={svgPreviewUrl}
+          onFile={onSvgFile}
+        />
+        <p className="text-xs text-cocoa-400">
+          Optional — without a graphic, the coin base shape alone is generated.
+        </p>
+      </ParameterCard>
 
       {GROUP_CARDS.map(({ group, title }) => {
         const groupFields = fields.filter((f) => f.group === group);
         if (groupFields.length === 0) return null;
 
         const hasVisibleField = groupFields.some((f) => !f.showIf || f.showIf(params));
-        // The primary "Geometry & Sizing" card always shows (it holds
-        // render_mode itself); other cards hide entirely when nothing in
-        // them currently applies.
+        // The primary "Geometry & Sizing" card always shows (it holds the
+        // size presets); the "Border" card hides entirely when nothing in
+        // it currently applies.
         if (!hasVisibleField && group !== "geometry") return null;
 
         return (
           <ParameterCard key={group} title={title}>
-            {group === "geometry" && workflow === "medallion" && isTokenMode(params) && (
-              <TokenSizePresets params={params} svgNaturalSize={svgNaturalSize} onSelect={onSelectPreset} />
-            )}
+            {group === "geometry" && <TokenSizePresets params={params} svgNaturalSize={svgNaturalSize} onSelect={onSelectPreset} />}
             {groupFields.map((field) => (
               <FieldRenderer key={field.key} field={field} params={params} onChange={onChange} />
             ))}
@@ -106,11 +98,9 @@ export function Sidebar({
         </p>
       </ParameterCard>
 
-      {workflow === "medallion" && isTokenMode(params) && (
-        <ParameterCard title="Cost Estimate" defaultOpen={false}>
-          <CostEstimate params={params} svgNaturalSize={svgNaturalSize} svgFillRatio={svgFillRatio} />
-        </ParameterCard>
-      )}
+      <ParameterCard title="Cost Estimate" defaultOpen={false}>
+        <CostEstimate params={params} svgNaturalSize={svgNaturalSize} svgFillRatio={svgFillRatio} />
+      </ParameterCard>
 
       <ParameterCard title="Print & Slicer Reference" defaultOpen={false}>
         <PrintReferenceCard />

@@ -1,5 +1,3 @@
-export type Workflow = "medallion" | "mold_box";
-
 export type ParamType = "number" | "enum" | "boolean";
 
 export interface NumberParamSpec {

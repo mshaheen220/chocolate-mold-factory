@@ -1,4 +1,3 @@
-export type Workflow = "medallion" | "mold_box";
 export type Quality = "draft" | "final";
 
 export type ParamValue = number | string | boolean;
@@ -7,7 +6,7 @@ export type ParamValues = Record<string, ParamValue>;
 interface BaseField {
   key: string;
   label: string;
-  group: "geometry" | "border" | "cavity" | "frame";
+  group: "geometry" | "border";
   showIf?: (params: ParamValues) => boolean;
   helpText?: string;
 }

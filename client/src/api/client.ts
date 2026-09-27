@@ -1,7 +1,6 @@
-import type { GenerateResponse, ParamValues, Quality, Workflow } from "../types";
+import type { GenerateResponse, ParamValues, Quality } from "../types";
 
 export interface GenerateRequest {
-  workflow: Workflow;
   params: ParamValues;
   file?: File | null;
   quality?: Quality;
@@ -9,14 +8,12 @@ export interface GenerateRequest {
 }
 
 export async function generateModel({
-  workflow,
   params,
   file,
   quality = "final",
   renderDetail,
 }: GenerateRequest): Promise<GenerateResponse> {
   const form = new FormData();
-  form.append("workflow", workflow);
   form.append("quality", quality);
   if (renderDetail !== undefined) {
     form.append("render_detail", String(renderDetail));

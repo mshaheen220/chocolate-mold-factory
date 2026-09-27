@@ -63,8 +63,8 @@ function Model({ url, onSizeChange }: ModelProps) {
   );
 }
 
-/** Picks a "nice" tick spacing (mm) so labels stay readable regardless of
- * whether the model is a 20mm token or a 300mm mold box. */
+/** Picks a "nice" tick spacing (mm) so labels stay readable across the
+ * full range of coin sizes. */
 function pickTickStep(largestDimensionMm: number): number {
   if (largestDimensionMm <= 30) return 5;
   if (largestDimensionMm <= 80) return 10;

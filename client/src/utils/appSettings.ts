@@ -1,18 +1,18 @@
-import type { ParamValues, Workflow } from "../types";
+import type { ParamValues } from "../types";
 import { downloadTextFile } from "./downloadFile";
 
 // Bump this if the shape below changes in a way that isn't
 // backwards-compatible, so a future import step can detect and reject (or
-// migrate) files saved by an older version.
-export const APP_SETTINGS_VERSION = 1;
+// migrate) files saved by an older version. v2 dropped the mold_box
+// workflow (and the "workflow"/"moldBoxParams" fields that went with it) -
+// older files still import fine since those fields are simply ignored now.
+export const APP_SETTINGS_VERSION = 2;
 
 export interface AppSettingsFile {
   version: number;
   exportedAt: string;
-  workflow: Workflow;
   renderDetail: number;
   medallionParams: ParamValues;
-  moldBoxParams: ParamValues;
 }
 
 export function exportAppSettings(
@@ -45,26 +45,18 @@ export function parseAppSettingsFile(raw: unknown): AppSettingsFile {
   }
   const obj = raw as Record<string, unknown>;
 
-  if (obj.workflow !== "medallion" && obj.workflow !== "mold_box") {
-    throw new Error("Missing or invalid workflow");
-  }
   if (typeof obj.renderDetail !== "number" || !Number.isFinite(obj.renderDetail)) {
     throw new Error("Missing or invalid renderDetail");
   }
   if (!isParamValues(obj.medallionParams)) {
     throw new Error("Missing or invalid medallionParams");
   }
-  if (!isParamValues(obj.moldBoxParams)) {
-    throw new Error("Missing or invalid moldBoxParams");
-  }
 
   return {
     version: typeof obj.version === "number" ? obj.version : 0,
     exportedAt: typeof obj.exportedAt === "string" ? obj.exportedAt : "",
-    workflow: obj.workflow,
     renderDetail: obj.renderDetail,
     medallionParams: obj.medallionParams,
-    moldBoxParams: obj.moldBoxParams,
   };
 }
 

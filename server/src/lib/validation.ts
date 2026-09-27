@@ -1,4 +1,4 @@
-import type { ParamSchema, ScadParams, Workflow } from "../types";
+import type { ParamSchema, ScadParams } from "../types";
 
 export class ValidationError extends Error {
   public readonly issues: string[];
@@ -19,24 +19,10 @@ export class ValidationError extends Error {
  * true/false.
  */
 export const medallionSchema: ParamSchema = {
-  render_mode: {
-    type: "enum",
-    options: [
-      "single_token",
-      "reusable_mold_box",
-      "adjustable_frame_strip",
-      "adjustable_frame_batch",
-      "adjustable_frame_preview",
-    ],
-    default: "single_token",
-  },
   svg_scale: { type: "number", min: 0.01, max: 20, default: 1 },
   svg_offset_x: { type: "number", min: -150, max: 150, default: 0 },
   svg_offset_y: { type: "number", min: -150, max: 150, default: 0 },
-  token_shape: { type: "enum", options: ["circle", "square", "oval", "rectangle"], default: "circle" },
   token_size: { type: "number", min: 5, max: 300, default: 40 },
-  token_length: { type: "number", min: 5, max: 300, default: 60 },
-  corner_radius: { type: "number", min: 0, max: 50, default: 4 },
   base_thickness: { type: "number", min: 0.4, max: 50, default: 3 },
   relief_height: { type: "number", min: 0.1, max: 20, default: 1.5 },
   draft_angle: { type: "number", min: 0, max: 45, default: 3 },
@@ -48,39 +34,9 @@ export const medallionSchema: ParamSchema = {
   border_height: { type: "number", min: 0.1, max: 10, default: 0.8 },
   bead_count: { type: "number", min: 4, max: 60, default: 24, integer: true },
   bead_size: { type: "number", min: 0.5, max: 15, default: 2.5 },
-  grid_x: { type: "number", min: 1, max: 10, default: 2, integer: true },
-  grid_y: { type: "number", min: 1, max: 10, default: 2, integer: true },
-  spacing: { type: "number", min: 0, max: 100, default: 5 },
-  outer_margin: { type: "number", min: 0, max: 100, default: 8 },
-  silicone_depth: { type: "number", min: 1, max: 100, default: 6 },
-  box_wall_th: { type: "number", min: 1, max: 50, default: 4 },
-  box_floor_th: { type: "number", min: 1, max: 50, default: 3 },
-  frame_flange_width: { type: "number", min: 2, max: 60, default: 10 },
-  frame_strip_length: { type: "number", min: 20, max: 500, default: 160 },
-  frame_batch_count: { type: "number", min: 1, max: 20, default: 4, integer: true },
 };
 
-export const moldBoxSchema: ParamSchema = {
-  mold_inner_length_x: { type: "number", min: 5, max: 500, default: 80 },
-  mold_inner_width_y: { type: "number", min: 5, max: 500, default: 60 },
-  mold_inner_depth_z: { type: "number", min: 2, max: 200, default: 20 },
-  wall_thickness: { type: "number", min: 1, max: 50, default: 5 },
-  floor_thickness: { type: "number", min: 1, max: 50, default: 4 },
-  draft_angle: { type: "number", min: 0, max: 45, default: 3 },
-  enable_center_guide: { type: "boolean", default: false },
-  guide_length_x: { type: "number", min: 1, max: 400, default: 20 },
-  guide_width_y: { type: "number", min: 1, max: 400, default: 15 },
-};
-
-export const schemasByWorkflow: Record<Workflow, ParamSchema> = {
-  medallion: medallionSchema,
-  mold_box: moldBoxSchema,
-};
-
-export const templateByWorkflow: Record<Workflow, string> = {
-  medallion: "medallion.scad",
-  mold_box: "mold_box.scad",
-};
+export const TEMPLATE_FILE = "medallion.scad";
 
 export type Quality = "draft" | "final";
 
@@ -110,10 +66,6 @@ export function parseRenderDetail(raw: unknown): number {
   const num = Number(raw);
   if (!Number.isFinite(num)) return DEFAULT_FINAL_FACET_COUNT;
   return Math.min(MAX_FACET_COUNT, Math.max(MIN_FACET_COUNT, Math.round(num)));
-}
-
-export function isWorkflow(value: unknown): value is Workflow {
-  return value === "medallion" || value === "mold_box";
 }
 
 /** Validates & coerces raw multipart/JSON body fields against a schema. */
@@ -161,7 +113,7 @@ export function validateParams(schema: ParamSchema, raw: Record<string, unknown>
   // Reject any keys in the raw payload that are not part of the schema and
   // not one of the known non-parameter fields, so unexpected fields never
   // silently pass through unvalidated.
-  const knownNonParamKeys = new Set(["workflow", "quality", "render_detail"]);
+  const knownNonParamKeys = new Set(["quality", "render_detail"]);
   for (const key of Object.keys(raw)) {
     if (!(key in schema) && !knownNonParamKeys.has(key)) {
       issues.push(`Unexpected field: ${key}`);

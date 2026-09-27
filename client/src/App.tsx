@@ -2,14 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { generateModel } from "./api/client";
 import { ActionBar } from "./components/ActionBar";
 import { Sidebar } from "./components/Sidebar";
-import { TabSwitcher } from "./components/TabSwitcher";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TipsPanel } from "./components/TipsPanel";
 import { GeneratingOverlay } from "./components/viewer/GeneratingOverlay";
 import { STLViewer } from "./components/viewer/STLViewer";
 import { TokenLayoutPreview } from "./components/viewer/TokenLayoutPreview";
-import { autoFitScaleForToken, defaultParams, isTokenMode, medallionFields, moldBoxFields, type TokenPreset } from "./paramSchemas";
-import type { Field, ParamValues, Quality, Workflow } from "./types";
+import { autoFitScaleForToken, defaultParams, medallionFields, type TokenPreset } from "./paramSchemas";
+import type { Field, ParamValues, Quality } from "./types";
 import { exportAppSettings, readAppSettingsFile } from "./utils/appSettings";
 import { measureSvgFillRatio, readSvgNaturalSize, type SvgNaturalSize } from "./utils/svg";
 
@@ -17,9 +16,7 @@ import { measureSvgFillRatio, readSvgNaturalSize, type SvgNaturalSize } from "./
 const DEFAULT_RENDER_DETAIL = 96;
 
 export default function App() {
-  const [workflow, setWorkflow] = useState<Workflow>("medallion");
-  const [medallionParams, setMedallionParams] = useState<ParamValues>(() => defaultParams(medallionFields));
-  const [moldBoxParams, setMoldBoxParams] = useState<ParamValues>(() => defaultParams(moldBoxFields));
+  const [params, setParams] = useState<ParamValues>(() => defaultParams(medallionFields));
   const [svgFile, setSvgFile] = useState<File | null>(null);
   const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
   const [svgNaturalSize, setSvgNaturalSize] = useState<SvgNaturalSize | null>(null);
@@ -37,12 +34,8 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [renderDetail, setRenderDetail] = useState(DEFAULT_RENDER_DETAIL);
 
-  const medallionParamsRef = useRef(medallionParams);
-  medallionParamsRef.current = medallionParams;
-
-  const fields = workflow === "medallion" ? medallionFields : moldBoxFields;
-  const params = workflow === "medallion" ? medallionParams : moldBoxParams;
-  const setParams = workflow === "medallion" ? setMedallionParams : setMoldBoxParams;
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
 
   // A single object URL per uploaded file, shared by the dropzone thumbnail
   // and the instant layout preview below.
@@ -56,12 +49,9 @@ export default function App() {
     return () => URL.revokeObjectURL(url);
   }, [svgFile]);
 
-  const handleFieldChange = useCallback(
-    (key: string, value: Field["default"]) => {
-      setParams((prev) => ({ ...prev, [key]: value }));
-    },
-    [setParams],
-  );
+  const handleFieldChange = useCallback((key: string, value: Field["default"]) => {
+    setParams((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const runGenerate = useCallback(
     async (quality: Quality) => {
@@ -69,13 +59,7 @@ export default function App() {
       setBusy(true);
       setErrorMessage(null);
       try {
-        const result = await generateModel({
-          workflow,
-          params,
-          file: workflow === "medallion" ? svgFile : undefined,
-          quality,
-          renderDetail,
-        });
+        const result = await generateModel({ params, file: svgFile, quality, renderDetail });
         setModelUrl(result.url);
         setModelQuality(result.quality);
         if (result.quality === "final") {
@@ -87,7 +71,7 @@ export default function App() {
         setBusy(false);
       }
     },
-    [workflow, params, svgFile, renderDetail],
+    [params, svgFile, renderDetail],
   );
 
   const handlePreview = useCallback(() => runGenerate("draft"), [runGenerate]);
@@ -101,15 +85,15 @@ export default function App() {
       return;
     }
 
-    // Fit the graphic to the current token footprint right away so the
-    // instant layout preview looks reasonable immediately, instead of an
-    // arbitrary default scale that might render it comically over- or
-    // under-sized. This is pure client-side math - no OpenSCAD round trip.
+    // Fit the graphic to the current coin size right away so the instant
+    // layout preview looks reasonable immediately, instead of an arbitrary
+    // default scale that might render it comically over- or under-sized.
+    // This is pure client-side math - no OpenSCAD round trip.
     readSvgNaturalSize(file)
       .then((natural) => {
         setSvgNaturalSize(natural);
-        const autoScale = autoFitScaleForToken(natural, medallionParamsRef.current);
-        setMedallionParams((prev) => ({ ...prev, svg_scale: autoScale }));
+        const autoScale = autoFitScaleForToken(natural, paramsRef.current);
+        setParams((prev) => ({ ...prev, svg_scale: autoScale }));
       })
       .catch(() => {
         // Malformed SVG metadata - leave the existing scale; the layout
@@ -127,16 +111,16 @@ export default function App() {
 
   const handlePresetSelect = useCallback(
     (preset: TokenPreset) => {
-      setMedallionParams((prev) => {
+      setParams((prev) => {
         const next: ParamValues = {
           ...prev,
           token_size: preset.size,
           base_thickness: preset.baseThickness,
           relief_height: preset.reliefHeight,
         };
-        // Re-fit the graphic to the new footprint, same as on upload -
-        // otherwise an image sized for one preset looks lost or oversized
-        // after switching to another.
+        // Re-fit the graphic to the new size, same as on upload - otherwise
+        // an image sized for one preset looks lost or oversized after
+        // switching to another.
         if (svgNaturalSize) {
           next.svg_scale = autoFitScaleForToken(svgNaturalSize, next);
         }
@@ -146,14 +130,13 @@ export default function App() {
     [svgNaturalSize],
   );
 
-  const showLayoutPreview =
-    workflow === "medallion" && svgFile && svgPreviewUrl && svgNaturalSize && isTokenMode(params);
+  const showLayoutPreview = svgFile && svgPreviewUrl && svgNaturalSize;
 
   const handleSaveSettings = useCallback(
     (fileName: string) => {
-      exportAppSettings({ workflow, renderDetail, medallionParams, moldBoxParams }, fileName);
+      exportAppSettings({ renderDetail, medallionParams: params }, fileName);
     },
-    [workflow, renderDetail, medallionParams, moldBoxParams],
+    [renderDetail, params],
   );
 
   const handleImportSettings = useCallback(async (file: File) => {
@@ -163,10 +146,8 @@ export default function App() {
       // imported params verbatim - a file saved before a field existed
       // (e.g. the SVG offset fields) would otherwise leave that param
       // undefined instead of falling back to its default.
-      setMedallionParams({ ...defaultParams(medallionFields), ...settings.medallionParams });
-      setMoldBoxParams({ ...defaultParams(moldBoxFields), ...settings.moldBoxParams });
+      setParams({ ...defaultParams(medallionFields), ...settings.medallionParams });
       setRenderDetail(settings.renderDetail);
-      setWorkflow(settings.workflow);
       // The previous render/download no longer reflects the newly loaded
       // params.
       setModelUrl(null);
@@ -188,7 +169,7 @@ export default function App() {
               Chocolate Mold Factory
               <span className="ml-2 align-middle text-[10px] font-normal text-cocoa-500">v{__APP_VERSION__}</span>
             </h1>
-            <p className="text-xs text-cocoa-400">Configure, preview, and generate 3D-printable mold assets.</p>
+            <p className="text-xs text-cocoa-400">Configure, preview, and generate a 3D-printable chocolate coin master.</p>
           </div>
         </div>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
@@ -200,16 +181,8 @@ export default function App() {
       <div className="min-h-0 flex-1">
         <div className="grid h-full grid-cols-1 md:grid-cols-[340px_1fr]">
           <aside className="flex flex-col gap-4 overflow-y-auto border-b border-cocoa-800 p-4 md:border-b-0 md:border-r">
-            <TabSwitcher
-              workflow={workflow}
-              onChange={(w) => {
-                setWorkflow(w);
-                setErrorMessage(null);
-              }}
-            />
             <Sidebar
-              workflow={workflow}
-              fields={fields}
+              fields={medallionFields}
               params={params}
               onChange={handleFieldChange}
               svgFile={svgFile}
@@ -227,10 +200,7 @@ export default function App() {
             <div className="relative min-h-0 flex-1">
               {!modelUrl && showLayoutPreview ? (
                 <TokenLayoutPreview
-                  tokenShape={String(params.token_shape)}
                   tokenSize={Number(params.token_size)}
-                  tokenLength={Number(params.token_length)}
-                  cornerRadius={Number(params.corner_radius)}
                   borderStyle={String(params.border_style)}
                   borderDirection={String(params.border_direction)}
                   borderInset={Number(params.border_inset)}
