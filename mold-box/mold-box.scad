@@ -8,12 +8,17 @@
 //               draft_angle so the cured block pushes out the top.
 //   gasket    - flat ring that sits on the ledge. Print in TPU.
 //   baseplate - drops in on the gasket, with the coin masters merged into
-//               it (coin_stl) so there's no seam for silicone to creep into.
+//               it (coin_stl / coin_stls) so there's no seam for silicone to
+//               creep into.
 //
 // Workflow: gasket in, baseplate in, pour silicone. The silicone's weight
 // presses the plate onto the gasket, which is the seal. Once cured, push up
 // through the open bottom against the baseplate and the whole block slides
 // out the top.
+//
+// For a plate of different coins, use build_baseplate.py next to this file:
+// it sizes the grid and box to the coins, merges them flush onto the plate
+// and checks the result.
 //
 // Printing: the baseplate carries the coin faces, so print it with your
 // master (high detail) settings. The box and gasket only need to hold: a
@@ -21,7 +26,7 @@
 // assume that.
 
 /* [What to render] */
-part = "all"; // [all, box, gasket, baseplate]
+part = "all"; // [all, box, gasket, baseplate, plate]
 
 /* [Coins] */
 coin_width     = 45;  // X size of one coin's footprint (circle: diameter)
@@ -29,7 +34,9 @@ coin_length    = 45;  // Y size of one coin's footprint (circle: same as width)
 coin_thickness = 4;   // total coin height incl. relief (base + relief)
 grid_x         = 2;   // coins across
 grid_y         = 2;   // coins down
-coin_stl       = "";  // path to the app's coin STL, merged in at each grid spot
+coin_stl       = "";  // path to the app's coin STL, merged in at every grid spot
+coin_stls      = [];  // or a different STL per spot, filled left to right from the top row
+                      // (overrides coin_stl; build_baseplate.py sets this for you)
 
 /* [Spacing] */
 gap_between_coins      = 10; // coin edge to coin edge
@@ -85,7 +92,9 @@ echo(str("Baseplate: ", plate_x, " x ", plate_y, " mm"));
 echo(str("Box outside: ", outer_x, " x ", outer_y, " x ", box_h, " mm"));
 echo(str("Silicone needed: about ", round(silicone_ml), " mL (less the coins)"));
 
-if (coin_stl == "" && part == "all") echo("WARNING: coin_stl is not set - the baseplate has no coins on it");
+function has_coins() = coin_stl != "" || len(coin_stls) > 0;
+
+if (!has_coins() && part == "all") echo("WARNING: coin_stl is not set - the baseplate has no coins on it");
 assert(opening_x > 0 && opening_y > 0, "ledge_width is too big for this plate");
 
 // ---------------------------------------------------------------------
@@ -122,12 +131,20 @@ function coin_center(i, j) = [
   -plate_y / 2 + border_gap + coin_length / 2 + j * (coin_length + gap_between_coins)
 ];
 
+// Spot (i, j) counts from the bottom-left; coin_stls reads like text, from
+// the top-left.
+function coin_stl_at(i, j) =
+  len(coin_stls) == 0 ? coin_stl
+  : let(k = (grid_y - 1 - j) * grid_x + i) k < len(coin_stls) ? coin_stls[k] : "";
+
 module baseplate() {
   rect(plate_x, plate_y, baseplate_thickness);
-  if (coin_stl != "")
-    for (i = [0 : grid_x - 1], j = [0 : grid_y - 1])
+  for (i = [0 : grid_x - 1], j = [0 : grid_y - 1]) {
+    stl = coin_stl_at(i, j);
+    if (stl != "")
       translate([each coin_center(i, j), baseplate_thickness - 0.01]) // -eps: overlap so the union is one solid
-        import(coin_stl);
+        import(stl);
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -137,8 +154,15 @@ module baseplate() {
 if (part == "box") box();
 else if (part == "gasket") gasket();
 else if (part == "baseplate") {
-  assert(coin_stl != "", "Set coin_stl to the app's coin STL before exporting the baseplate");
+  assert(has_coins(), "Set coin_stl to the app's coin STL before exporting the baseplate");
   baseplate();
+}
+else if (part == "plate") {
+  // Bare plate plus the spot centres, for build_baseplate.py to merge the
+  // coins itself (more forgiving of imperfect coin meshes than CGAL).
+  for (j = [grid_y - 1 : -1 : 0], i = [0 : grid_x - 1])
+    echo(str("SPOT ", coin_center(i, j)[0], " ", coin_center(i, j)[1]));
+  rect(plate_x, plate_y, baseplate_thickness);
 }
 else if (part == "all") {
   box();
