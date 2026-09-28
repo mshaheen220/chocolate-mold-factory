@@ -58,6 +58,7 @@ How it works: the browser flattens every filled shape into polygons (resolving C
 │   ├── uploads/                Ephemeral SVG uploads (deleted immediately after each compile)
 │   ├── output/                 Generated STL files (persisted via Docker volume)
 │   └── temp/                   Scratch space for in-flight compiles
+├── mold-box/                  Standalone mold-box.scad: reusable silicone pour box (sleeve + TPU gasket + coin baseplate)
 ├── docker/                    Container support scripts (xvfb wrapper)
 ├── Dockerfile                 Multi-stage build (deps → client/server build → runtime/dev/client-dev)
 ├── docker-compose.yml         Single-container production deployment
