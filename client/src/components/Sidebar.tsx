@@ -1,6 +1,9 @@
-import type { TokenPreset } from "../paramSchemas";
+import { isFieldVisible, pieceModeOf, type TokenPreset } from "../paramSchemas";
 import type { Field, ParamValues } from "../types";
+import type { ArtworkModel, ColorSetting, ColorSettings } from "../utils/contour";
 import type { SvgNaturalSize } from "../utils/svg";
+import type { Footprint } from "../utils/volume";
+import { ColorLayersPanel } from "./ColorLayersPanel";
 import { CostEstimate } from "./CostEstimate";
 import { ParameterCard } from "./ParameterCard";
 import { PrintReferenceCard } from "./PrintReferenceCard";
@@ -29,7 +32,12 @@ interface SidebarProps {
   svgFile: File | null;
   svgPreviewUrl: string | null;
   svgNaturalSize: SvgNaturalSize | null;
-  svgFillRatio: number | null;
+  artwork: ArtworkModel | null;
+  artworkError: string | null;
+  colorSettings: ColorSettings;
+  onColorSettingChange: (color: string, setting: ColorSetting) => void;
+  removedSpeckCount: number;
+  estimate: { totalVolumeMm3: number; footprint: Footprint; measuredArtwork: boolean };
   onSvgFile: (file: File | null) => void;
   onSelectPreset: (preset: TokenPreset) => void;
   renderDetail: number;
@@ -43,6 +51,7 @@ interface SidebarProps {
 
 const GROUP_CARDS: { group: Field["group"]; title: string }[] = [
   { group: "geometry", title: "Geometry & Sizing" },
+  { group: "layers", title: "Color Layers" },
   { group: "border", title: "Border" },
   { group: "label", title: "Back Label" },
 ];
@@ -54,7 +63,12 @@ export function Sidebar({
   svgFile,
   svgPreviewUrl,
   svgNaturalSize,
-  svgFillRatio,
+  artwork,
+  artworkError,
+  colorSettings,
+  onColorSettingChange,
+  removedSpeckCount,
+  estimate,
   onSvgFile,
   onSelectPreset,
   renderDetail,
@@ -65,6 +79,8 @@ export function Sidebar({
   onFirstLayerHeightChange,
   onNormalize,
 }: SidebarProps) {
+  const mode = pieceModeOf(params);
+
   return (
     <div className="flex flex-col gap-4">
       <ParameterCard title="Asset Upload">
@@ -76,7 +92,9 @@ export function Sidebar({
           onFile={onSvgFile}
         />
         <p className="text-xs text-cocoa-400">
-          Optional — without a graphic, the coin base shape alone is generated.
+          {mode === "contour"
+            ? "Required — the piece's outline is traced from this graphic's filled shapes, one layer per color."
+            : "Optional — without a graphic, the coin base shape alone is generated."}
         </p>
       </ParameterCard>
 
@@ -84,7 +102,7 @@ export function Sidebar({
         const groupFields = fields.filter((f) => f.group === group);
         if (groupFields.length === 0) return null;
 
-        const hasVisibleField = groupFields.some((f) => !f.showIf || f.showIf(params));
+        const hasVisibleField = groupFields.some((f) => isFieldVisible(f, params));
         // The primary "Geometry & Sizing" card always shows (it holds the
         // size presets); the "Border" card hides entirely when nothing in
         // it currently applies.
@@ -92,14 +110,26 @@ export function Sidebar({
 
         return (
           <ParameterCard key={group} title={title}>
-            {group === "geometry" && <TokenSizePresets params={params} svgNaturalSize={svgNaturalSize} onSelect={onSelectPreset} />}
+            {group === "geometry" && mode === "coin" && (
+              <TokenSizePresets params={params} svgNaturalSize={svgNaturalSize} onSelect={onSelectPreset} />
+            )}
+            {group === "layers" && (
+              <ColorLayersPanel
+                artwork={artwork}
+                analysisError={artworkError}
+                colorSettings={colorSettings}
+                onChange={onColorSettingChange}
+                removedSpeckCount={removedSpeckCount}
+                recessed={params.contour_relief_direction === "recessed"}
+              />
+            )}
             {groupFields.map((field) => (
               <FieldRenderer key={field.key} field={field} params={params} onChange={onChange} />
             ))}
             {group === "label" && (
               <p className="text-xs text-cocoa-400">
-                Etched as a shallow recess into the back (bed-facing) side, so printed coins with different settings
-                can be told apart. Leave blank to skip it.
+                Etched as a shallow recess into the back (bed-facing) side, so printed pieces with different
+                settings can be told apart. Leave blank to skip it.
               </p>
             )}
           </ParameterCard>
@@ -141,8 +171,9 @@ export function Sidebar({
           onChange={onFirstLayerHeightChange}
         />
         <p className="text-xs text-cocoa-400">
-          Snaps Base Thickness, Relief Height, and Border Height to whole layers at these settings, so each one's
-          top surface lands exactly on a layer boundary instead of ending partway through one.
+          {mode === "contour"
+            ? "Snaps Base Thickness and every color layer's height to whole layers at these settings, so each one's top surface lands exactly on a layer boundary instead of ending partway through one."
+            : "Snaps Base Thickness, Relief Height, and Border Height to whole layers at these settings, so each one's top surface lands exactly on a layer boundary instead of ending partway through one."}
         </p>
         <button
           type="button"
@@ -154,7 +185,7 @@ export function Sidebar({
       </ParameterCard>
 
       <ParameterCard title="Cost Estimate" defaultOpen={false}>
-        <CostEstimate params={params} svgNaturalSize={svgNaturalSize} svgFillRatio={svgFillRatio} />
+        <CostEstimate {...estimate} unit={mode === "contour" ? "piece" : "coin"} />
       </ParameterCard>
 
       <ParameterCard title="Print & Slicer Reference" defaultOpen={false}>

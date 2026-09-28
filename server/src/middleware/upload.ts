@@ -3,6 +3,7 @@ import path from "node:path";
 import multer, { type FileFilterCallback } from "multer";
 import type { Request } from "express";
 import { config } from "../config";
+import { MAX_CONTOUR_LAYERS } from "../lib/validation";
 
 const ALLOWED_EXTENSIONS: Record<string, string[]> = {
   ".svg": ["image/svg+xml", "text/plain", "application/octet-stream"],
@@ -45,5 +46,15 @@ export const upload = multer({
   limits: {
     fileSize: config.maxUploadBytes,
     files: 1,
+  },
+});
+
+/** Contoured pieces upload one pre-split SVG per color layer. */
+export const layerUpload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: config.maxUploadBytes,
+    files: MAX_CONTOUR_LAYERS,
   },
 });

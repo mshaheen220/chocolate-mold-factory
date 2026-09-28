@@ -2,7 +2,10 @@ import { useId } from "react";
 import type { SvgNaturalSize } from "../../utils/svg";
 
 interface TokenLayoutPreviewProps {
+  tokenShape: string;
   tokenSize: number;
+  tokenLength: number;
+  cornerRadius: number;
   borderStyle: string;
   borderDirection: string;
   borderInset: number;
@@ -21,8 +24,23 @@ interface ShapeStyle {
   strokeDasharray?: string;
 }
 
-function TokenOutline({ radius, ...rest }: { radius: number } & ShapeStyle) {
-  return <circle cx={0} cy={0} r={radius} {...rest} />;
+function TokenOutline({
+  tokenShape,
+  halfWidth,
+  halfHeight,
+  cornerRadius,
+  ...rest
+}: {
+  tokenShape: string;
+  halfWidth: number;
+  halfHeight: number;
+  cornerRadius: number;
+} & ShapeStyle) {
+  if (tokenShape === "square" || tokenShape === "rectangle") {
+    const r = Math.max(0, Math.min(cornerRadius, halfWidth, halfHeight));
+    return <rect x={-halfWidth} y={-halfHeight} width={halfWidth * 2} height={halfHeight * 2} rx={r} ry={r} {...rest} />;
+  }
+  return <ellipse cx={0} cy={0} rx={halfWidth} ry={halfHeight} {...rest} />;
 }
 
 /**
@@ -40,7 +58,10 @@ function TokenOutline({ radius, ...rest }: { radius: number } & ShapeStyle) {
 const FIXED_VIEW_HALF = 90;
 
 export function TokenLayoutPreview({
+  tokenShape,
   tokenSize,
+  tokenLength,
+  cornerRadius,
   borderStyle,
   borderDirection,
   borderInset,
@@ -51,7 +72,16 @@ export function TokenLayoutPreview({
   svgOffsetY,
 }: TokenLayoutPreviewProps) {
   const clipId = useId();
-  const radius = tokenSize / 2;
+  const halfWidth = tokenSize / 2;
+  const halfHeight = tokenLength / 2;
+  // Mirrors offset(delta=-inset) in medallion.scad: every side moves in by
+  // the inset, and a rounded corner's radius shrinks by the same amount.
+  const outline = (inset: number) => ({
+    tokenShape,
+    halfWidth: Math.max(0, halfWidth - inset),
+    halfHeight: Math.max(0, halfHeight - inset),
+    cornerRadius: Math.max(0, Math.min(cornerRadius, halfWidth, halfHeight) - inset),
+  });
   const viewHalf = FIXED_VIEW_HALF;
 
   const hasImage = svgUrl && svgNaturalSize;
@@ -71,11 +101,11 @@ export function TokenLayoutPreview({
       >
         <defs>
           <clipPath id={clipId}>
-            <TokenOutline radius={radius} />
+            <TokenOutline {...outline(0)} />
           </clipPath>
         </defs>
 
-        <TokenOutline radius={radius} fill="#d9b98c" stroke="#6f3c22" strokeWidth={viewHalf * 0.015} />
+        <TokenOutline {...outline(0)} fill="#d9b98c" stroke="#6f3c22" strokeWidth={viewHalf * 0.015} />
 
         {hasImage && (
           <g clipPath={`url(#${clipId})`}>
@@ -85,7 +115,7 @@ export function TokenLayoutPreview({
 
         {borderStyle !== "none" && (
           <TokenOutline
-            radius={Math.max(0, radius - borderInset)}
+            {...outline(borderInset)}
             fill="none"
             // Raised catches light (bright highlight); recessed reads as a
             // shadowed groove (dark, slightly heavier stroke) - a rough

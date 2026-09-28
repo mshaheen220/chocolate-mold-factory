@@ -1,12 +1,28 @@
 export type Quality = "draft" | "final";
 
 export type ParamValue = number | string | boolean;
+
+/** The user-facing Piece Shape choice. */
+export type PieceShape = "circle" | "oval" | "square" | "rectangle" | "contour";
+
+/**
+ * Which generator a shape uses: "coin" = a geometric token (circle, oval,
+ * square, rectangle - medallion.scad); "contour" = the outline follows the
+ * uploaded artwork (contour.scad).
+ */
+export type PieceMode = "coin" | "contour";
 export type ParamValues = Record<string, ParamValue>;
 
 interface BaseField {
   key: string;
   label: string;
-  group: "geometry" | "border" | "label";
+  group: "geometry" | "layers" | "border" | "label";
+  /** Only applies to (and is only sent to the server for) this mode. Omit for fields shared by both. */
+  mode?: PieceMode;
+  /** Overrides `label` when it depends on other params (e.g. "Diameter" vs "Width"). */
+  labelFor?: (params: ParamValues) => string;
+  /** Drives client-side behavior only - never sent to the server. */
+  clientOnly?: boolean;
   showIf?: (params: ParamValues) => boolean;
   helpText?: string;
 }

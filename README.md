@@ -1,18 +1,33 @@
 # Chocolate Mold Factory
 
-A visual UI to configure, preview, and generate a single 3D-printable chocolate coin master, compiled on demand by the [OpenSCAD](https://openscad.org/) CLI.
+A visual UI to configure, preview, and generate a single 3D-printable chocolate master (a circle, oval, square, or rectangle coin, or a piece contoured to the artwork's own outline), compiled on demand by the [OpenSCAD](https://openscad.org/) CLI.
 
 - **Frontend:** React + Vite + TypeScript + Tailwind CSS, with a `@react-three/fiber` viewport for orbiting/panning the generated STL model, an instant client-side 2D layout preview, a chocolate cost estimator, and a rotating print-tips panel.
 - **Backend:** Node.js + Express + TypeScript, shelling out to the OpenSCAD CLI to compile a parametric `.scad` template into a `.stl` file.
 - **Containerized:** Docker multi-stage build; OpenSCAD runs headlessly under `xvfb`.
 
-## Workflow
+## Workflows
 
-**2D Graphic → Chocolate Coin** — upload an SVG graphic and generate one relief coin (circular). Coins support an optional raised or recessed border (single ring, double ring, or beaded), size presets (Small/Medium/Large/Custom) that keep the uploaded graphic auto-fit as you switch between them, and draft-angle tapering for clean mold release.
+Pick one with **Piece Shape** at the top of Geometry & Sizing.
+
+**Circle / Oval / Square / Rectangle** — upload an SVG graphic and generate one relief coin in that shape. Width is the diameter for a circle and the side length for a square; oval and rectangle add an independent **Length (Y)**, and square/rectangle add a **Corner Radius**. Coins support an optional raised or recessed border (single ring, double ring, or beaded), size presets (Small/Medium/Large/Custom) that keep the uploaded graphic auto-fit as you switch between them, and draft-angle tapering for clean mold release.
+
+**Contour** — the piece's outline follows the artwork itself, and each fill color becomes its own relief level (see `client/public/demos/` for a sample traced logo). Under **Color Layers**, every color gets:
+
+- **In piece** — whether it's part of the chocolate. The outline is the combined shape of every included color; unchecked colors are background, cut away wherever they're painted (near-white colors start unchecked).
+- **Height above base** — mm above the base's top face (0 = flush, negative = engraved). The most visible color starts at 0, the rest at 1.2mm.
+
+**Relief Direction** flips every color at once: Raised makes the details stand out, Recessed engraves them into the base instead (heights then read as depths, and engraving always leaves at least 0.2mm of base so it can't cut through).
+
+**Base Plate** adds a lower tier: a smooth plate (the design's convex hull, grown by **Plate Border**) that fills every gap and notch in the outline, with the design standing **Design Height Above Plate** on top of it. The back label moves into the plate's underside, and recessed details may cut all the way down to the plate.
+
+Also: **Piece Size** (longest side), **Outline Margin** (a rim grown around the outline, which also bridges tiny gaps), and **Remove Detached Bits Under** (drops pieces smaller than this % of the main body, such as a ™ mark, which would otherwise print as separate crumbs). Text, `<use>` references, and embedded images in the SVG are ignored; convert text to outlines first.
+
+How it works: the browser flattens every filled shape into polygons (resolving CSS, inherited fills, and transforms via the DOM), removes detached specks, simplifies outlines to 0.05mm (0.15mm for Quick Preview), and uploads one SVG per run of same-height colors, bottom to top. `server/templates/contour.scad` subtracts each layer by everything painted above it, unions the included layers into the outline, and extrudes each one to its height. The template is built from unions only (the back label and engravings are cut in 2D), because a CGAL `difference()` against this many outline vertices takes minutes instead of seconds.
 
 ## Key features
 
-- **Instant 2D layout preview** — as soon as a graphic is uploaded (or any slider moves), a client-side SVG preview shows exact fit with zero OpenSCAD round-trip.
+- **Instant 2D layout preview** — as soon as a graphic is uploaded (or any slider moves), a client-side SVG preview shows exact fit with zero OpenSCAD round-trip. Contoured pieces are shaded by height (lighter = taller) with their final dimensions.
 - **Quick Preview vs. Full Render** — mirrors OpenSCAD's own Preview/Render split. Quick Preview uses a fixed low facet count and swaps the uploaded graphic for its convex hull (near-instant, even for complex artwork); Full Render always uses full detail and a user-adjustable facet count ("Render Detail"). Download STL only ever points at the last Full Render, so a rough draft can never be mistaken for print-ready output.
 - **Chocolate Cost Estimate** — computes the exact geometric volume of the coin (base + border + relief), with the relief's contribution measured by rasterizing the uploaded graphic to find its actual ink coverage rather than guessing a fill ratio, then converts that to a cost per coin for Milk/Dark/White/Colored chocolate.
 - **Save / Import Settings** — download the current parameters as a JSON file, and load them back later, so you don't have to remember slider values across sessions.
@@ -39,7 +54,7 @@ A visual UI to configure, preview, and generate a single 3D-printable chocolate 
 │   │   ├── routes/            /api/generate, /api/health, /api/output
 │   │   ├── lib/                validation (param whitelist), OpenSCAD runner, SVG normalization, cleanup
 │   │   └── middleware/         Multer upload handling
-│   ├── templates/             Parametric OpenSCAD template (medallion.scad)
+│   ├── templates/             Parametric OpenSCAD templates (medallion.scad = coin, contour.scad = contoured piece)
 │   ├── uploads/                Ephemeral SVG uploads (deleted immediately after each compile)
 │   ├── output/                 Generated STL files (persisted via Docker volume)
 │   └── temp/                   Scratch space for in-flight compiles
@@ -91,6 +106,11 @@ Frontend at `http://localhost:5173`, backend at `http://localhost:3000`.
   - an optional `file` (SVG graphic)
 
   Returns `{ fileName, url, quality }`; fetch `GET {url}` for the STL binary, or `GET {url}?download=1` to force a download.
+- `POST /api/generate/contour` — multipart form for a contoured piece:
+  - `piece_size`, `base_thickness`, `outline_margin`, `version_label`, plus `art_width` / `art_height` (the shared layer frame) and `label_x` / `label_y` (back-label position, mm from center)
+  - `layers` — one SVG file per layer, bottom to top (up to 24), each with viewBox `0 0 art_width art_height`
+  - `layer_heights` — JSON array of mm per layer (−20 to 20); `layer_included` — JSON array of booleans (false = background mask)
+  - `quality` / `render_detail` as above; same response shape
 
 All parameters are validated against a fixed schema (numeric ranges, enum whitelists, boolean coercion) before being passed to the OpenSCAD CLI as `-D` flags via `execFile` — never through a shell — so arbitrary input can't reach the command line. Uploaded SVGs are also normalized server-side so viewBox units reliably map to millimeters inside OpenSCAD, regardless of how the original file declared its size.
 

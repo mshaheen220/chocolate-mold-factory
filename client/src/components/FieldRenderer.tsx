@@ -1,3 +1,4 @@
+import { isFieldVisible } from "../paramSchemas";
 import type { Field, ParamValues } from "../types";
 import { NumberField } from "./controls/NumberField";
 import { SelectField } from "./controls/SelectField";
@@ -11,12 +12,13 @@ interface FieldRendererProps {
 }
 
 export function FieldRenderer({ field, params, onChange }: FieldRendererProps) {
-  if (field.showIf && !field.showIf(params)) return null;
+  if (!isFieldVisible(field, params)) return null;
+  const label = field.labelFor ? field.labelFor(params) : field.label;
 
   if (field.type === "number") {
     return (
       <NumberField
-        label={field.label}
+        label={label}
         value={params[field.key] as number}
         min={field.min}
         max={field.max}
@@ -30,7 +32,7 @@ export function FieldRenderer({ field, params, onChange }: FieldRendererProps) {
   if (field.type === "enum") {
     return (
       <SelectField
-        label={field.label}
+        label={label}
         value={params[field.key] as string}
         options={field.options}
         onChange={(v) => onChange(field.key, v)}
@@ -41,7 +43,7 @@ export function FieldRenderer({ field, params, onChange }: FieldRendererProps) {
   if (field.type === "string") {
     return (
       <TextField
-        label={field.label}
+        label={label}
         value={params[field.key] as string}
         maxLength={field.maxLength}
         placeholder={field.placeholder}
@@ -52,7 +54,7 @@ export function FieldRenderer({ field, params, onChange }: FieldRendererProps) {
 
   return (
     <CheckboxField
-      label={field.label}
+      label={label}
       checked={Boolean(params[field.key])}
       onChange={(v) => onChange(field.key, v)}
     />

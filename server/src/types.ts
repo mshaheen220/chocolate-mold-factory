@@ -31,7 +31,8 @@ export type ParamSpec = NumberParamSpec | EnumParamSpec | BooleanParamSpec | Str
 
 export type ParamSchema = Record<string, ParamSpec>;
 
-export type ScadValue = number | string | boolean;
+export type ScadScalar = number | string | boolean;
+export type ScadValue = ScadScalar | readonly ScadScalar[];
 export type ScadParams = Record<string, ScadValue>;
 
 export interface GenerateResult {

@@ -1,4 +1,5 @@
 import type { ParamValues } from "../types";
+import type { ColorSettings } from "./contour";
 import { downloadTextFile } from "./downloadFile";
 
 // Bump this if the shape below changes in a way that isn't
@@ -13,6 +14,8 @@ export interface AppSettingsFile {
   exportedAt: string;
   renderDetail: number;
   medallionParams: ParamValues;
+  /** Contoured pieces' per-color settings, keyed by fill color (e.g. "#113595"). Absent in older files. */
+  contourColors?: ColorSettings;
 }
 
 export function buildAppSettingsPayload(settings: Omit<AppSettingsFile, "version" | "exportedAt">): AppSettingsFile {
@@ -57,11 +60,24 @@ export function parseAppSettingsFile(raw: unknown): AppSettingsFile {
   }
 
   return {
+    contourColors: parseColorSettings(obj.contourColors),
     version: typeof obj.version === "number" ? obj.version : 0,
     exportedAt: typeof obj.exportedAt === "string" ? obj.exportedAt : "",
     renderDetail: obj.renderDetail,
     medallionParams: obj.medallionParams,
   };
+}
+
+function parseColorSettings(raw: unknown): ColorSettings | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const result: ColorSettings = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const v = value as { included?: unknown; height?: unknown } | null;
+    if (v && typeof v.included === "boolean" && typeof v.height === "number" && Number.isFinite(v.height)) {
+      result[key] = { included: v.included, height: v.height };
+    }
+  }
+  return result;
 }
 
 /** Reads and parses a settings file picked via a file input. */

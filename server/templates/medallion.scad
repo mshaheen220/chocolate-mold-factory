@@ -1,4 +1,4 @@
-// 2D Graphic to Chocolate Coin (single circular token, printed one at a time)
+// 2D Graphic to Chocolate Coin (single token - circle, oval, square, or rectangle - printed one at a time)
 // All variables below are overridden at compile time via `-D name=value`
 // from the backend. Defaults here only matter when opening this file
 // directly in the OpenSCAD GUI for template development.
@@ -20,7 +20,10 @@ svg_offset_x = 0; // mm, applied after scaling: +X = right
 svg_offset_y = 0; // mm, applied after scaling: +Y = up
 
 /* [Piece Geometry] */
-token_size       = 40;       // coin diameter
+token_shape      = "circle"; // circle | square | oval | rectangle
+token_size       = 40;       // width: circle diameter / square side / oval X-diameter / rectangle width
+token_length     = 60;       // length (Y axis): only used by oval & rectangle; ignored for circle/square
+corner_radius    = 4;        // rounding for square & rectangle corners
 base_thickness   = 3;
 relief_height    = 1.5;
 relief_direction = "raised"; // raised | recessed
@@ -45,8 +48,26 @@ $fn = 96;
 // Token base shape & relief
 // ---------------------------------------------------------------------
 
+function token_effective_length() =
+  (token_shape == "oval" || token_shape == "rectangle") ? token_length : token_size;
+
+// The token's smaller side - what "how much room is there" math (draft
+// taper, label sizing) should measure against.
+function token_min_side() = min(token_size, token_effective_length());
+
 module token_base_2d() {
-  circle(d = token_size);
+  if (token_shape == "square") {
+    r = min(corner_radius, token_size / 2);
+    offset(r = r) offset(delta = -r) square([token_size, token_size], center = true);
+  } else if (token_shape == "rectangle") {
+    r = min(corner_radius, min(token_size, token_length) / 2);
+    offset(r = r) offset(delta = -r) square([token_size, token_length], center = true);
+  } else if (token_shape == "oval") {
+    scale([1, token_length / token_size])
+      circle(d = token_size);
+  } else {
+    circle(d = token_size);
+  }
 }
 
 module svg_shape_2d() {
@@ -67,7 +88,7 @@ module svg_shape_positioned() {
 // cleanly from a printed mold cavity.
 module svg_relief_raised() {
   if (svg_path != "") {
-    taper_ratio = max(0.05, 1 - (2 * relief_height * tan(draft_angle) / token_size));
+    taper_ratio = max(0.05, 1 - (2 * relief_height * tan(draft_angle) / token_min_side()));
     linear_extrude(height = relief_height, scale = taper_ratio)
       svg_shape_positioned();
   }
@@ -93,12 +114,41 @@ module ring_2d(inset, width) {
   }
 }
 
+// Analytic distance from the origin to the boundary of a rounded
+// rectangle (half-extents hw/hh, corner radius r) along direction angle
+// `a`. Used to place beads exactly on a rounded-rect's border for square
+// and rectangle tokens.
+function rect_boundary_t(a, hw, hh, r) =
+  let(
+    dx = (cos(a) == 0) ? 1e-9 : cos(a),
+    dy = (sin(a) == 0) ? 1e-9 : sin(a),
+    t_edge = min(hw / abs(dx), hh / abs(dy)),
+    px = t_edge * dx,
+    py = t_edge * dy,
+    in_corner = (abs(px) > hw - r + 1e-6) && (abs(py) > hh - r + 1e-6)
+  )
+  !in_corner
+    ? t_edge
+    : let(
+        cx = (dx >= 0 ? 1 : -1) * (hw - r),
+        cy = (dy >= 0 ? 1 : -1) * (hh - r),
+        b = dx * cx + dy * cy,
+        c = cx * cx + cy * cy - r * r,
+        disc = max(0, b * b - c)
+      ) b + sqrt(disc);
+
+function bead_point(a, hw, hh, r, is_round) =
+  is_round ? [hw * cos(a), hh * sin(a)] : (rect_boundary_t(a, hw, hh, r) * [cos(a), sin(a)]);
+
 module beaded_ring_2d(inset) {
-  r = token_size / 2 - inset - bead_size / 2 + BORDER_EDGE_EPS;
+  is_round = (token_shape == "circle" || token_shape == "oval");
+  hw = token_size / 2 - inset - bead_size / 2 + BORDER_EDGE_EPS;
+  hh = token_effective_length() / 2 - inset - bead_size / 2 + BORDER_EDGE_EPS;
+  r = max(0, min(corner_radius, token_min_side() / 2) - inset - bead_size / 2);
 
   for (i = [0 : bead_count - 1]) {
     a = i * 360 / bead_count;
-    translate([r * cos(a), r * sin(a)])
+    translate(bead_point(a, hw, hh, r, is_round))
       circle(d = bead_size, $fn = 20); // beads are small - high $fn just slows down CSG for no visible gain
   }
 }
@@ -131,7 +181,7 @@ module version_label_2d() {
     // size-vs-coin scaling - 0.6 is a rough average character-width-to-
     // height ratio for a bold sans font, good enough to avoid overflow
     // without measuring actual glyph metrics.
-    text_size = min(token_size * 0.12, 3, (token_size * 0.7) / max(1, label_len * 0.6));
+    text_size = min(token_min_side() * 0.12, 3, (token_min_side() * 0.7) / max(1, label_len * 0.6));
     // Mirrored so the label reads correctly once the printed coin is
     // physically turned over left-to-right (as opposed to flipped top-
     // to-bottom) to view its back.

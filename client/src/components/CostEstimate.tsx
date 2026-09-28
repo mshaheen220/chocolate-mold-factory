@@ -1,24 +1,24 @@
 import { CHOCOLATE_PRICES_PER_OZ, FILAMENT_MATERIALS } from "../pricing";
-import type { ParamValues } from "../types";
-import type { SvgNaturalSize } from "../utils/svg";
-import { computeTokenVolume, estimateFilamentVolumeMm3 } from "../utils/volume";
+import { estimateFilamentVolumeMm3, type Footprint } from "../utils/volume";
 
 const CHOCOLATE_DENSITY_G_PER_ML = 1.3; // reasonable single estimate across chocolate types
 const G_PER_OZ = 28.3495;
 
 interface CostEstimateProps {
-  params: ParamValues;
-  svgNaturalSize: SvgNaturalSize | null;
-  svgFillRatio: number | null;
+  totalVolumeMm3: number;
+  footprint: Footprint;
+  /** "coin" or "piece" - wording only. */
+  unit: string;
+  /** Whether the uploaded artwork's actual shape was measured (vs. no graphic at all). */
+  measuredArtwork: boolean;
 }
 
-export function CostEstimate({ params, svgNaturalSize, svgFillRatio }: CostEstimateProps) {
-  const { totalVolumeMm3 } = computeTokenVolume(params, svgNaturalSize, svgFillRatio);
+export function CostEstimate({ totalVolumeMm3, footprint, unit, measuredArtwork }: CostEstimateProps) {
   const volumeMl = totalVolumeMm3 / 1000;
   const weightG = volumeMl * CHOCOLATE_DENSITY_G_PER_ML;
   const weightOz = weightG / G_PER_OZ;
 
-  const filamentVolumeMl = estimateFilamentVolumeMm3(params, totalVolumeMm3) / 1000;
+  const filamentVolumeMl = estimateFilamentVolumeMm3(footprint, totalVolumeMm3) / 1000;
 
   const milk = CHOCOLATE_PRICES_PER_OZ.find((c) => c.id === "milk");
   const milkCostPerCoin = milk ? weightOz * milk.pricePerOz : 0;
@@ -27,14 +27,14 @@ export function CostEstimate({ params, svgNaturalSize, svgFillRatio }: CostEstim
     <div className="space-y-4">
       <div className="rounded-md border border-cocoa-700 bg-cocoa-800/40 px-3 py-2">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs font-medium text-cocoa-200">Chocolate cost per coin (Milk)</span>
+          <span className="text-xs font-medium text-cocoa-200">Chocolate cost per {unit} (Milk)</span>
           <span className="text-sm font-semibold text-cocoa-50">${milkCostPerCoin.toFixed(3)}</span>
         </div>
       </div>
 
       <div>
         <div className="flex items-baseline justify-between text-xs">
-          <span className="text-cocoa-300">Chocolate volume per coin</span>
+          <span className="text-cocoa-300">Chocolate volume per {unit}</span>
           <span className="font-medium tabular-nums text-cocoa-100">
             {volumeMl.toFixed(2)} mL &middot; {weightG.toFixed(1)} g
           </span>
@@ -54,7 +54,7 @@ export function CostEstimate({ params, svgNaturalSize, svgFillRatio }: CostEstim
 
         <p className="mt-1.5 text-[10px] leading-tight text-cocoa-500">
           Assumes {CHOCOLATE_DENSITY_G_PER_ML} g/mL chocolate density
-          {svgFillRatio !== null ? " and the uploaded graphic's measured ink coverage" : ""}. Actual usage varies
+          {measuredArtwork ? " and the uploaded graphic's measured shape" : ""}. Actual usage varies
           with pour technique and mold overflow.
         </p>
       </div>
@@ -81,7 +81,7 @@ export function CostEstimate({ params, svgNaturalSize, svgFillRatio }: CostEstim
         </div>
 
         <p className="mt-1.5 text-[10px] leading-tight text-cocoa-500">
-          One-time cost to print the master, not per coin - the same printed master is reused for every mold you pour
+          One-time cost to print the master, not per {unit} - the same printed master is reused for every mold you pour
           from it. Estimates solid outer walls/top/bottom shell at full density (matching Print & Slicer Reference)
           and the remaining interior at 4% infill - not the raw model volume, which would overstate usage.
         </p>

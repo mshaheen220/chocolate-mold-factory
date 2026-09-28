@@ -1,6 +1,6 @@
 {
   "name": "chocolate-mold-factory",
-  "version": "3.5.0",
+  "version": "3.9.0",
   "private": true,
   "description": "Visual UI to configure, preview, and generate a single 3D-printable chocolate coin master via OpenSCAD.",
   "workspaces": [

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { config } from "../config";
 import { escapeScadString } from "./validation";
-import type { ScadParams } from "../types";
+import type { ScadParams, ScadScalar } from "../types";
 
 export class OpenScadError extends Error {
   constructor(
@@ -51,20 +51,28 @@ export function buildScadArgs(
       throw new Error(`Refusing to pass unsafe OpenSCAD variable name: ${key}`);
     }
 
-    let serialized: string;
-    if (typeof value === "number") {
-      serialized = String(value);
-    } else if (typeof value === "boolean") {
-      serialized = value ? "true" : "false";
-    } else {
-      serialized = `"${escapeScadString(value)}"`;
-    }
+    const serialized = Array.isArray(value)
+      ? `[${value.map(serializeScadScalar).join(",")}]`
+      : serializeScadScalar(value as ScadScalar);
 
     args.push("-D", `${key}=${serialized}`);
   }
 
   args.push(templatePath);
   return args;
+}
+
+function serializeScadScalar(value: ScadScalar): string {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("Refusing to pass a non-finite number to OpenSCAD");
+    }
+    return String(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return `"${escapeScadString(value)}"`;
 }
 
 export function runOpenScad(

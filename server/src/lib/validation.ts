@@ -22,7 +22,10 @@ export const medallionSchema: ParamSchema = {
   svg_scale: { type: "number", min: 0.01, max: 20, default: 1 },
   svg_offset_x: { type: "number", min: -150, max: 150, default: 0 },
   svg_offset_y: { type: "number", min: -150, max: 150, default: 0 },
+  token_shape: { type: "enum", options: ["circle", "square", "oval", "rectangle"], default: "circle" },
   token_size: { type: "number", min: 5, max: 300, default: 40 },
+  token_length: { type: "number", min: 5, max: 300, default: 60 },
+  corner_radius: { type: "number", min: 0, max: 150, default: 4 },
   base_thickness: { type: "number", min: 0.4, max: 50, default: 3 },
   relief_height: { type: "number", min: 0.1, max: 20, default: 1.5 },
   relief_direction: { type: "enum", options: ["raised", "recessed"], default: "raised" },
@@ -39,6 +42,87 @@ export const medallionSchema: ParamSchema = {
 };
 
 export const TEMPLATE_FILE = "medallion.scad";
+
+/**
+ * Contoured pieces: the outline follows the uploaded artwork instead of a
+ * circle. The per-layer arrays (paths/heights/included) aren't in this
+ * schema - they're validated by parseContourLayers() against the uploaded
+ * layer files themselves.
+ */
+export const contourSchema: ParamSchema = {
+  art_width: { type: "number", min: 0.001, max: 1_000_000, default: 100 },
+  art_height: { type: "number", min: 0.001, max: 1_000_000, default: 100 },
+  piece_size: { type: "number", min: 5, max: 300, default: 50 },
+  base_thickness: { type: "number", min: 0.4, max: 50, default: 4 },
+  outline_margin: { type: "number", min: 0, max: 20, default: 0 },
+  base_plate: { type: "enum", options: ["none", "hull"], default: "none" },
+  plate_border: { type: "number", min: 0, max: 30, default: 4 },
+  plate_thickness: { type: "number", min: 0.4, max: 20, default: 2 },
+  label_x: { type: "number", min: -300, max: 300, default: 0 },
+  label_y: { type: "number", min: -300, max: 300, default: 0 },
+  version_label: { type: "string", maxLength: 16, pattern: /^[A-Za-z0-9 .#/_-]*$/, default: "" },
+};
+
+export const CONTOUR_TEMPLATE_FILE = "contour.scad";
+export const CONTOUR_LAYER_FIELDS = ["layer_heights", "layer_included"] as const;
+export const MAX_CONTOUR_LAYERS = 24;
+const LAYER_HEIGHT_MIN = -20;
+const LAYER_HEIGHT_MAX = 20;
+
+function parseJsonArrayField(raw: unknown, key: string): unknown[] {
+  const str = String(Array.isArray(raw) ? raw[0] : raw ?? "");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(str);
+  } catch {
+    throw new ValidationError([`${key} must be a JSON array`]);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new ValidationError([`${key} must be a JSON array`]);
+  }
+  return parsed;
+}
+
+/** Validates the per-layer height / included arrays against the number of uploaded layer files. */
+export function parseContourLayers(
+  raw: Record<string, unknown>,
+  layerCount: number,
+): { heights: number[]; included: boolean[] } {
+  if (layerCount < 1) {
+    throw new ValidationError(["At least one color layer file is required"]);
+  }
+  if (layerCount > MAX_CONTOUR_LAYERS) {
+    throw new ValidationError([`At most ${MAX_CONTOUR_LAYERS} color layers are supported`]);
+  }
+
+  const rawHeights = parseJsonArrayField(raw.layer_heights, "layer_heights");
+  const rawIncluded = parseJsonArrayField(raw.layer_included, "layer_included");
+  const issues: string[] = [];
+
+  if (rawHeights.length !== layerCount) issues.push("layer_heights must have one entry per layer file");
+  if (rawIncluded.length !== layerCount) issues.push("layer_included must have one entry per layer file");
+
+  const heights = rawHeights.map((h, i) => {
+    if (typeof h !== "number" || !Number.isFinite(h) || h < LAYER_HEIGHT_MIN || h > LAYER_HEIGHT_MAX) {
+      issues.push(`layer_heights[${i}] must be a number between ${LAYER_HEIGHT_MIN} and ${LAYER_HEIGHT_MAX}`);
+      return 0;
+    }
+    return h;
+  });
+  const included = rawIncluded.map((v, i) => {
+    if (typeof v !== "boolean") {
+      issues.push(`layer_included[${i}] must be true or false`);
+      return false;
+    }
+    return v;
+  });
+  if (!included.some(Boolean)) issues.push("At least one layer must be part of the piece");
+
+  if (issues.length > 0) {
+    throw new ValidationError(issues);
+  }
+  return { heights, included };
+}
 
 export type Quality = "draft" | "final";
 
@@ -71,7 +155,11 @@ export function parseRenderDetail(raw: unknown): number {
 }
 
 /** Validates & coerces raw multipart/JSON body fields against a schema. */
-export function validateParams(schema: ParamSchema, raw: Record<string, unknown>): ScadParams {
+export function validateParams(
+  schema: ParamSchema,
+  raw: Record<string, unknown>,
+  extraKnownKeys: readonly string[] = [],
+): ScadParams {
   const issues: string[] = [];
   const result: ScadParams = {};
 
@@ -126,7 +214,7 @@ export function validateParams(schema: ParamSchema, raw: Record<string, unknown>
   // Reject any keys in the raw payload that are not part of the schema and
   // not one of the known non-parameter fields, so unexpected fields never
   // silently pass through unvalidated.
-  const knownNonParamKeys = new Set(["quality", "render_detail"]);
+  const knownNonParamKeys = new Set(["quality", "render_detail", ...extraKnownKeys]);
   for (const key of Object.keys(raw)) {
     if (!(key in schema) && !knownNonParamKeys.has(key)) {
       issues.push(`Unexpected field: ${key}`);

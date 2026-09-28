@@ -1,17 +1,41 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { generateModel } from "./api/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { generateContourModel, generateModel } from "./api/client";
 import { ActionBar } from "./components/ActionBar";
 import { Sidebar } from "./components/Sidebar";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TipsPanel } from "./components/TipsPanel";
 import { GeneratingOverlay } from "./components/viewer/GeneratingOverlay";
+import { ContourLayoutPreview } from "./components/viewer/ContourLayoutPreview";
 import { STLViewer } from "./components/viewer/STLViewer";
 import { TokenLayoutPreview } from "./components/viewer/TokenLayoutPreview";
-import { autoFitScaleForToken, defaultParams, medallionFields, type TokenPreset } from "./paramSchemas";
+import {
+  autoFitScaleForToken,
+  defaultParams,
+  medallionFields,
+  paramsForServer,
+  hasBasePlate,
+  pieceModeOf,
+  pieceShapeOf,
+  tokenLengthOf,
+  type TokenPreset,
+} from "./paramSchemas";
 import type { Field, ParamValues, Quality } from "./types";
 import { buildAppSettingsPayload, exportAppSettings, readAppSettingsFile } from "./utils/appSettings";
 import { downloadBlob } from "./utils/downloadFile";
-import { normalizeToLayers } from "./utils/normalize";
+import {
+  analyzeArtwork,
+  buildContourUpload,
+  type ArtworkModel,
+  type ColorSetting,
+  type ColorSettings,
+  defaultColorSettings,
+  DRAFT_TOLERANCE_MM,
+  FINAL_TOLERANCE_MM,
+  measureContour,
+  prepareContour,
+} from "./utils/contour";
+import { normalizeToLayers, snapToFirstLayerStack, snapToLayerMultiple } from "./utils/normalize";
+import { coinFootprint, computeTokenVolume } from "./utils/volume";
 import { measureSvgFillRatio, readSvgNaturalSize, type SvgNaturalSize } from "./utils/svg";
 import { createZip } from "./utils/zip";
 
@@ -35,6 +59,11 @@ export default function App() {
   const [svgPreviewUrl, setSvgPreviewUrl] = useState<string | null>(null);
   const [svgNaturalSize, setSvgNaturalSize] = useState<SvgNaturalSize | null>(null);
   const [svgFillRatio, setSvgFillRatio] = useState<number | null>(null);
+  // Contoured pieces: the uploaded SVG split into filled shapes by color,
+  // and each color's role/height in the piece.
+  const [artwork, setArtwork] = useState<ArtworkModel | null>(null);
+  const [artworkError, setArtworkError] = useState<string | null>(null);
+  const [colorSettings, setColorSettings] = useState<ColorSettings>({});
   // modelUrl/modelQuality track whatever is currently shown in the 3D
   // viewer (draft or final); downloadUrl only ever points at a Full
   // Render output, so a quick draft preview can never be mistaken for a
@@ -68,7 +97,59 @@ export default function App() {
       return;
     }
     setIsStale(true);
-  }, [params, svgFile]);
+  }, [params, svgFile, colorSettings]);
+
+  const pieceMode = pieceModeOf(params);
+
+  const basePlate = useMemo(
+    () =>
+      hasBasePlate(params)
+        ? { border: Number(params.plate_border), thickness: Number(params.plate_thickness) }
+        : null,
+    [params],
+  );
+
+  const preparedContour = useMemo(
+    () =>
+      artwork
+        ? prepareContour(
+            artwork,
+            colorSettings,
+            Number(params.speck_filter),
+            params.contour_relief_direction === "recessed" ? "recessed" : "raised",
+          )
+        : null,
+    [artwork, colorSettings, params.speck_filter, params.contour_relief_direction],
+  );
+
+  const estimate = useMemo(() => {
+    if (pieceMode === "contour") {
+      if (!preparedContour) {
+        return { totalVolumeMm3: 0, footprint: { areaMm2: 0, perimeterMm: 0, baseThickness: 0 }, measuredArtwork: false };
+      }
+      const m = measureContour(
+        preparedContour,
+        Number(params.piece_size),
+        Number(params.base_thickness),
+        Number(params.outline_margin),
+        basePlate,
+      );
+      return {
+        totalVolumeMm3: m.volumeMm3,
+        footprint: {
+          areaMm2: m.footprintAreaMm2,
+          perimeterMm: m.perimeterMm,
+          baseThickness: Number(params.base_thickness) + (basePlate?.thickness ?? 0),
+        },
+        measuredArtwork: true,
+      };
+    }
+    return {
+      totalVolumeMm3: computeTokenVolume(params, svgNaturalSize, svgFillRatio).totalVolumeMm3,
+      footprint: coinFootprint(params),
+      measuredArtwork: svgFillRatio !== null,
+    };
+  }, [pieceMode, preparedContour, params, svgNaturalSize, svgFillRatio, basePlate]);
 
   // A single object URL per uploaded file, shared by the dropzone thumbnail
   // and the instant layout preview below.
@@ -92,7 +173,34 @@ export default function App() {
       setBusy(true);
       setErrorMessage(null);
       try {
-        const result = await generateModel({ params, file: svgFile, quality, renderDetail });
+        let result;
+        if (pieceMode === "contour") {
+          if (!preparedContour) {
+            throw new Error(
+              artwork
+                ? "Mark at least one color as part of the piece first"
+                : "Upload an SVG graphic first - a contoured piece takes its outline from it",
+            );
+          }
+          const upload = buildContourUpload(
+            preparedContour,
+            Number(params.piece_size),
+            quality === "draft" ? DRAFT_TOLERANCE_MM : FINAL_TOLERANCE_MM,
+          );
+          result = await generateContourModel({
+            params: paramsForServer(medallionFields, params),
+            upload,
+            quality,
+            renderDetail,
+          });
+        } else {
+          result = await generateModel({
+            params: paramsForServer(medallionFields, params),
+            file: svgFile,
+            quality,
+            renderDetail,
+          });
+        }
         setModelUrl(result.url);
         setModelQuality(result.quality);
         setIsStale(false);
@@ -105,19 +213,42 @@ export default function App() {
         setBusy(false);
       }
     },
-    [params, svgFile, renderDetail],
+    [params, svgFile, renderDetail, pieceMode, preparedContour, artwork],
   );
 
   const handlePreview = useCallback(() => runGenerate("draft"), [runGenerate]);
   const handleRender = useCallback(() => runGenerate("final"), [runGenerate]);
 
+  const handleColorSettingChange = useCallback((color: string, setting: ColorSetting) => {
+    setColorSettings((prev) => ({ ...prev, [color]: setting }));
+  }, []);
+
   const handleSvgFile = useCallback((file: File | null) => {
     setSvgFile(file);
+    setArtwork(null);
+    setArtworkError(null);
     if (!file) {
       setSvgNaturalSize(null);
       setSvgFillRatio(null);
       return;
     }
+
+    // Split into color layers for contoured pieces. Done on every upload
+    // (not just in contour mode) so switching Piece Shape afterwards
+    // needs no re-upload. Settings already held for a color (e.g. from an
+    // imported settings file) win over the defaults.
+    analyzeArtwork(file)
+      .then((model) => {
+        setArtwork(model);
+        setColorSettings((prev) => {
+          const next = defaultColorSettings(model);
+          for (const key of Object.keys(next)) {
+            if (prev[key]) next[key] = prev[key];
+          }
+          return next;
+        });
+      })
+      .catch((err) => setArtworkError(err instanceof Error ? err.message : "Could not read this SVG's shapes"));
 
     // Fit the graphic to the current coin size right away so the instant
     // layout preview looks reasonable immediately, instead of an arbitrary
@@ -165,6 +296,17 @@ export default function App() {
   );
 
   const handleNormalize = useCallback(() => {
+    if (pieceMode === "contour") {
+      setColorSettings((prev) =>
+        Object.fromEntries(
+          Object.entries(prev).map(([key, setting]) => {
+            if (setting.height === 0) return [key, setting];
+            const snapped = snapToLayerMultiple(Math.abs(setting.height), layerHeight);
+            return [key, { ...setting, height: Math.sign(setting.height) * Number(snapped.toFixed(4)) }];
+          }),
+        ),
+      );
+    }
     setParams((prev) => {
       const normalized = normalizeToLayers(
         {
@@ -179,20 +321,34 @@ export default function App() {
           borderHeight: numberFieldBounds(medallionFields, "border_height"),
         },
       );
-      return {
+      const next: ParamValues = {
         ...prev,
         base_thickness: normalized.baseThickness,
         relief_height: normalized.reliefHeight,
         border_height: normalized.borderHeight,
       };
+      if (hasBasePlate(prev)) {
+        // The plate is what sits on the bed now; the design's own height
+        // is whole layers stacked on the plate's already-aligned top.
+        const clampTo = (key: string, value: number) => {
+          const { min, max } = numberFieldBounds(medallionFields, key);
+          return Number(Math.min(max, Math.max(min, value)).toFixed(4));
+        };
+        next.plate_thickness = clampTo(
+          "plate_thickness",
+          snapToFirstLayerStack(Number(prev.plate_thickness), { layerHeight, firstLayerHeight }, 1),
+        );
+        next.base_thickness = clampTo("base_thickness", snapToLayerMultiple(Number(prev.base_thickness), layerHeight));
+      }
+      return next;
     });
-  }, [layerHeight, firstLayerHeight]);
+  }, [layerHeight, firstLayerHeight, pieceMode]);
 
   const handleSaveSettings = useCallback(
     (fileName: string) => {
-      exportAppSettings({ renderDetail, medallionParams: params }, fileName);
+      exportAppSettings({ renderDetail, medallionParams: params, contourColors: colorSettings }, fileName);
     },
-    [renderDetail, params],
+    [renderDetail, params, colorSettings],
   );
 
   const handleImportSettings = useCallback(async (file: File) => {
@@ -211,8 +367,17 @@ export default function App() {
       const importedParams = Object.fromEntries(
         Object.entries(settings.medallionParams).filter(([key]) => knownKeys.has(key)),
       );
+      // Files saved before Piece Shape existed (or while shapes briefly
+      // weren't offered) stored the coin shape as token_shape.
+      if (importedParams.piece_shape === undefined && typeof settings.medallionParams.token_shape === "string") {
+        importedParams.piece_shape = settings.medallionParams.token_shape;
+      }
+      if (importedParams.piece_shape === "coin") importedParams.piece_shape = "circle";
       setParams({ ...defaultParams(medallionFields), ...importedParams });
       setRenderDetail(settings.renderDetail);
+      if (settings.contourColors) {
+        setColorSettings((prev) => ({ ...prev, ...settings.contourColors }));
+      }
       // The previous render/download no longer reflects the newly loaded
       // params.
       setModelUrl(null);
@@ -234,13 +399,19 @@ export default function App() {
         const trimmed = rawFileName.trim();
         // Strip a typed .stl/.zip extension - it's re-added below once we
         // know whether it's naming the .stl inside or the .zip around it.
-        const base = trimmed ? trimmed.replace(/\.(stl|zip)$/i, "") : "chocolate-mold-factory-coin";
+        const base = trimmed
+          ? trimmed.replace(/\.(stl|zip)$/i, "")
+          : `chocolate-mold-factory-${pieceMode === "contour" ? "piece" : "coin"}`;
 
         const stlResponse = await fetch(downloadUrl);
         if (!stlResponse.ok) throw new Error("Failed to fetch the generated STL");
         const stlBytes = new Uint8Array(await stlResponse.arrayBuffer());
 
-        const settingsPayload = buildAppSettingsPayload({ renderDetail, medallionParams: params });
+        const settingsPayload = buildAppSettingsPayload({
+          renderDetail,
+          medallionParams: params,
+          contourColors: colorSettings,
+        });
         const settingsBytes = new TextEncoder().encode(JSON.stringify(settingsPayload, null, 2));
 
         const zipBlob = createZip([
@@ -254,7 +425,7 @@ export default function App() {
         setIsPackaging(false);
       }
     },
-    [downloadUrl, renderDetail, params],
+    [downloadUrl, renderDetail, params, colorSettings, pieceMode],
   );
 
   return (
@@ -267,7 +438,9 @@ export default function App() {
               Chocolate Mold Factory
               <span className="ml-2 align-middle text-[10px] font-normal text-cocoa-500">v{__APP_VERSION__}</span>
             </h1>
-            <p className="text-xs text-cocoa-400">Configure, preview, and generate a 3D-printable chocolate coin master.</p>
+            <p className="text-xs text-cocoa-400">
+              Configure, preview, and generate a 3D-printable chocolate coin or contoured piece master.
+            </p>
           </div>
         </div>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
@@ -286,7 +459,12 @@ export default function App() {
               svgFile={svgFile}
               svgPreviewUrl={svgPreviewUrl}
               svgNaturalSize={svgNaturalSize}
-              svgFillRatio={svgFillRatio}
+              artwork={artwork}
+              artworkError={artworkError}
+              colorSettings={colorSettings}
+              onColorSettingChange={handleColorSettingChange}
+              removedSpeckCount={preparedContour?.removedSpeckCount ?? 0}
+              estimate={estimate}
               renderDetail={renderDetail}
               onRenderDetailChange={setRenderDetail}
               layerHeight={layerHeight}
@@ -301,9 +479,25 @@ export default function App() {
 
           <main className="flex min-h-0 flex-col">
             <div className="relative min-h-0 flex-1">
-              {!modelUrl || isStale ? (
+              {(!modelUrl || isStale) && pieceMode === "contour" ? (
+                <ContourLayoutPreview
+                  prepared={preparedContour}
+                  pieceSize={Number(params.piece_size)}
+                  outlineMargin={Number(params.outline_margin)}
+                  plate={basePlate}
+                  emptyMessage={
+                    artworkError ??
+                    (artwork
+                      ? "Mark at least one color as part of the piece under Color Layers."
+                      : "Upload an SVG graphic - the piece's outline follows its filled shapes.")
+                  }
+                />
+              ) : !modelUrl || isStale ? (
                 <TokenLayoutPreview
+                  tokenShape={pieceShapeOf(params)}
                   tokenSize={Number(params.token_size)}
+                  tokenLength={tokenLengthOf(params)}
+                  cornerRadius={Number(params.corner_radius)}
                   borderStyle={String(params.border_style)}
                   borderDirection={String(params.border_direction)}
                   borderInset={Number(params.border_inset)}
