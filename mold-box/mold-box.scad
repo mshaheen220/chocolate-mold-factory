@@ -7,23 +7,18 @@
 //               straight around the gasket + baseplate, then flare out by
 //               draft_angle so the cured block pushes out the top.
 //   gasket    - flat ring that sits on the ledge. Print in TPU.
-//   baseplate - drops in on the gasket and carries the coin masters.
+//   baseplate - drops in on the gasket, with the coin masters merged into
+//               it (coin_stl) so there's no seam for silicone to creep into.
 //
 // Workflow: gasket in, baseplate in, pour silicone. The silicone's weight
 // presses the plate onto the gasket, which is the seal. Once cured, push up
 // through the open bottom against the baseplate and the whole block slides
 // out the top.
 //
-// Coins on the baseplate, two ways:
-//   coin_stl = ""        plate gets a shallow locating ring per coin; glue
-//                        your separately printed masters inside the rings
-//                        (seal the full perimeter or silicone creeps under).
-//   coin_stl = "x.stl"   the app's coin STL is merged into the plate at each
-//                        grid spot, so nothing can creep under. Print the
-//                        plate at master quality in that case.
-//
-// The box and gasket only need to hold, not look good: a 0.4 nozzle at
-// 0.28mm layers is fine. The tolerances below assume that.
+// Printing: the baseplate carries the coin faces, so print it with your
+// master (high detail) settings. The box and gasket only need to hold: a
+// 0.4 nozzle at a coarse layer height is fine, and the tolerances below
+// assume that.
 
 /* [What to render] */
 part = "all"; // [all, box, gasket, baseplate]
@@ -31,11 +26,10 @@ part = "all"; // [all, box, gasket, baseplate]
 /* [Coins] */
 coin_width     = 45;  // X size of one coin's footprint (circle: diameter)
 coin_length    = 45;  // Y size of one coin's footprint (circle: same as width)
-coin_shape     = "circle"; // [circle, rectangle] - only affects the locating rings
 coin_thickness = 4;   // total coin height incl. relief (base + relief)
 grid_x         = 2;   // coins across
 grid_y         = 2;   // coins down
-coin_stl       = "";  // optional: path to the app's coin STL to merge into the plate
+coin_stl       = "";  // path to the app's coin STL, merged in at each grid spot
 
 /* [Spacing] */
 gap_between_coins      = 10; // coin edge to coin edge
@@ -52,8 +46,6 @@ baseplate_tolerance = 0.6; // total clearance (both sides) between plate and wal
 /* [Gasket & Baseplate] */
 gasket_thickness    = 1.5;
 baseplate_thickness = 3;
-locating_ring_width = 0.8; // coin_stl = "" only
-locating_ring_depth = 0.4;
 
 /* [Layout] */
 part_spacing = 10; // gap between parts when part = "all"
@@ -93,6 +85,7 @@ echo(str("Baseplate: ", plate_x, " x ", plate_y, " mm"));
 echo(str("Box outside: ", outer_x, " x ", outer_y, " x ", box_h, " mm"));
 echo(str("Silicone needed: about ", round(silicone_ml), " mL (less the coins)"));
 
+if (coin_stl == "" && part == "all") echo("WARNING: coin_stl is not set - the baseplate has no coins on it");
 assert(opening_x > 0 && opening_y > 0, "ledge_width is too big for this plate");
 
 // ---------------------------------------------------------------------
@@ -129,28 +122,11 @@ function coin_center(i, j) = [
   -plate_y / 2 + border_gap + coin_length / 2 + j * (coin_length + gap_between_coins)
 ];
 
-module coin_outline_2d(grow) {
-  if (coin_shape == "rectangle")
-    square([coin_width + 2 * grow, coin_length + 2 * grow], center = true);
-  else
-    scale([1, coin_length / coin_width]) circle(d = coin_width + 2 * grow);
-}
-
 module baseplate() {
-  difference() {
-    rect(plate_x, plate_y, baseplate_thickness);
-    if (coin_stl == "")
-      for (i = [0 : grid_x - 1], j = [0 : grid_y - 1])
-        translate([each coin_center(i, j), baseplate_thickness - locating_ring_depth])
-          linear_extrude(height = locating_ring_depth + 0.01)
-            difference() {
-              coin_outline_2d(0.3 + locating_ring_width);
-              coin_outline_2d(0.3);
-            }
-  }
+  rect(plate_x, plate_y, baseplate_thickness);
   if (coin_stl != "")
     for (i = [0 : grid_x - 1], j = [0 : grid_y - 1])
-      translate([each coin_center(i, j), baseplate_thickness - 0.01])
+      translate([each coin_center(i, j), baseplate_thickness - 0.01]) // -eps: overlap so the union is one solid
         import(coin_stl);
 }
 
@@ -160,7 +136,10 @@ module baseplate() {
 
 if (part == "box") box();
 else if (part == "gasket") gasket();
-else if (part == "baseplate") baseplate();
+else if (part == "baseplate") {
+  assert(coin_stl != "", "Set coin_stl to the app's coin STL before exporting the baseplate");
+  baseplate();
+}
 else if (part == "all") {
   box();
   translate([outer_x / 2 + part_spacing + pocket_x / 2, 0, 0]) gasket();
