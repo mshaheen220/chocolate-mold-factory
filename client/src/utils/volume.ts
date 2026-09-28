@@ -85,17 +85,28 @@ export function computeTokenVolume(
     }
   }
 
-  // Relief volume: a linear_extrude(scale=taperRatio) frustum over the
-  // graphic's measured filled area (not its full bounding box).
+  // Relief volume. Raised: a linear_extrude(scale=taperRatio) frustum over
+  // the graphic's measured filled area (not its full bounding box).
+  // Recessed: carves that same filled area straight down out of the base
+  // (no taper - mirrors token_body()'s recessed branch in medallion.scad),
+  // capped short of the full base thickness the same way a recessed
+  // border is.
   let reliefVolumeMm3 = 0;
   if (svgNaturalSize && svgFillRatio !== null) {
     const svgScale = Number(params.svg_scale);
     const bboxArea = svgNaturalSize.width * svgScale * (svgNaturalSize.height * svgScale);
     const filledArea = bboxArea * svgFillRatio;
-    const taperRatio = Math.max(0.05, 1 - (2 * reliefHeight * Math.tan((draftAngle * Math.PI) / 180)) / size);
-    const topArea = filledArea * taperRatio * taperRatio; // linear scale -> area scales as the square
-    // Frustum volume: (h/3) * (A1 + A2 + sqrt(A1*A2)).
-    reliefVolumeMm3 = (reliefHeight / 3) * (filledArea + topArea + Math.sqrt(filledArea * topArea));
+    const reliefDirection = String(params.relief_direction ?? "raised");
+
+    if (reliefDirection === "recessed") {
+      const recessDepth = Math.min(reliefHeight, Math.max(0, baseThickness - 0.2));
+      reliefVolumeMm3 = -filledArea * recessDepth;
+    } else {
+      const taperRatio = Math.max(0.05, 1 - (2 * reliefHeight * Math.tan((draftAngle * Math.PI) / 180)) / size);
+      const topArea = filledArea * taperRatio * taperRatio; // linear scale -> area scales as the square
+      // Frustum volume: (h/3) * (A1 + A2 + sqrt(A1*A2)).
+      reliefVolumeMm3 = (reliefHeight / 3) * (filledArea + topArea + Math.sqrt(filledArea * topArea));
+    }
   }
 
   return {

@@ -25,6 +25,7 @@ export const medallionSchema: ParamSchema = {
   token_size: { type: "number", min: 5, max: 300, default: 40 },
   base_thickness: { type: "number", min: 0.4, max: 50, default: 3 },
   relief_height: { type: "number", min: 0.1, max: 20, default: 1.5 },
+  relief_direction: { type: "enum", options: ["raised", "recessed"], default: "raised" },
   draft_angle: { type: "number", min: 0, max: 45, default: 3 },
   border_style: { type: "enum", options: ["none", "single", "double", "beaded"], default: "none" },
   border_direction: { type: "enum", options: ["raised", "recessed"], default: "raised" },
@@ -34,6 +35,7 @@ export const medallionSchema: ParamSchema = {
   border_height: { type: "number", min: 0.1, max: 10, default: 0.8 },
   bead_count: { type: "number", min: 4, max: 60, default: 24, integer: true },
   bead_size: { type: "number", min: 0.5, max: 15, default: 2.5 },
+  version_label: { type: "string", maxLength: 16, pattern: /^[A-Za-z0-9 .#/_-]*$/, default: "" },
 };
 
 export const TEMPLATE_FILE = "medallion.scad";
@@ -107,6 +109,17 @@ export function validateParams(schema: ParamSchema, raw: Record<string, unknown>
         continue;
       }
       result[key] = str === "true" || str === "1";
+    } else if (spec.type === "string") {
+      const str = String(Array.isArray(rawValue) ? rawValue[0] : rawValue).trim();
+      if (str.length > spec.maxLength) {
+        issues.push(`${key} must be ${spec.maxLength} characters or fewer`);
+        continue;
+      }
+      if (!spec.pattern.test(str)) {
+        issues.push(`${key} contains unsupported characters`);
+        continue;
+      }
+      result[key] = str;
     }
   }
 

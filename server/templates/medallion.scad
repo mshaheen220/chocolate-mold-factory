@@ -20,10 +20,11 @@ svg_offset_x = 0; // mm, applied after scaling: +X = right
 svg_offset_y = 0; // mm, applied after scaling: +Y = up
 
 /* [Piece Geometry] */
-token_size     = 40;       // coin diameter
-base_thickness = 3;
-relief_height  = 1.5;
-draft_angle    = 3;
+token_size       = 40;       // coin diameter
+base_thickness   = 3;
+relief_height    = 1.5;
+relief_direction = "raised"; // raised | recessed
+draft_angle      = 3;
 
 /* [Border] */
 border_style     = "none";  // none | single | double | beaded
@@ -35,6 +36,9 @@ border_height    = 0.8;    // how far the border rises above (raised) or cuts in
 bead_count       = 24;     // number of individual beads around the perimeter (beaded only)
 bead_size        = 2.5;    // diameter of each bead (beaded only)
 
+/* [Back Label] */
+version_label = ""; // optional short text etched into the back (bed-facing) side - "" = no label
+
 $fn = 96;
 
 // ---------------------------------------------------------------------
@@ -45,8 +49,6 @@ module token_base_2d() {
   circle(d = token_size);
 }
 
-// Extrudes the uploaded SVG as a relief with a draft-angle taper so it
-// releases cleanly from a printed mold cavity.
 module svg_shape_2d() {
   if (fast_preview) {
     hull() import(svg_path, center = true);
@@ -55,13 +57,19 @@ module svg_shape_2d() {
   }
 }
 
-module svg_relief() {
+module svg_shape_positioned() {
+  translate([svg_offset_x, svg_offset_y])
+    scale(svg_scale)
+      svg_shape_2d();
+}
+
+// Adds the relief as a raised bump, tapered by draft angle so it releases
+// cleanly from a printed mold cavity.
+module svg_relief_raised() {
   if (svg_path != "") {
     taper_ratio = max(0.05, 1 - (2 * relief_height * tan(draft_angle) / token_size));
     linear_extrude(height = relief_height, scale = taper_ratio)
-      translate([svg_offset_x, svg_offset_y])
-        scale(svg_scale)
-          svg_shape_2d();
+      svg_shape_positioned();
   }
 }
 
@@ -69,15 +77,24 @@ module svg_relief() {
 // Raised border (single / double ring, or a beaded ring of dots)
 // ---------------------------------------------------------------------
 
+// At inset=0 the border's outer edge is exactly coincident with the
+// token's own outer wall - subtracting a cutter whose boundary exactly
+// matches the solid's boundary (the recessed-border case in token())
+// leaves CGAL a degenerate, non-manifold sliver right at the rim. Nudging
+// the outer edge out by this much always keeps it strictly past the true
+// wall, so a full, clean cut is guaranteed; at any larger inset the same
+// nudge is a sub-print-resolution no-op.
+BORDER_EDGE_EPS = 0.01;
+
 module ring_2d(inset, width) {
   difference() {
-    offset(delta = -inset) token_base_2d();
+    offset(delta = BORDER_EDGE_EPS - inset) token_base_2d();
     offset(delta = -(inset + width)) token_base_2d();
   }
 }
 
 module beaded_ring_2d(inset) {
-  r = token_size / 2 - inset - bead_size / 2;
+  r = token_size / 2 - inset - bead_size / 2 + BORDER_EDGE_EPS;
 
   for (i = [0 : bead_count - 1]) {
     a = i * 360 / bead_count;
@@ -99,12 +116,61 @@ module border_2d() {
   }
 }
 
+// ---------------------------------------------------------------------
+// Back label (a short identifier etched into the bed-facing side, so
+// physical prints of different settings can be told apart)
+// ---------------------------------------------------------------------
+
+VERSION_LABEL_DEPTH = 0.4; // mm - shallow: identification only, not a structural feature
+
+module version_label_2d() {
+  if (version_label != "") {
+    label_len = len(version_label);
+    // Caps the glyph height so even a full 16-character label stays
+    // within ~70% of the coin's own diameter, on top of the usual
+    // size-vs-coin scaling - 0.6 is a rough average character-width-to-
+    // height ratio for a bold sans font, good enough to avoid overflow
+    // without measuring actual glyph metrics.
+    text_size = min(token_size * 0.12, 3, (token_size * 0.7) / max(1, label_len * 0.6));
+    // Mirrored so the label reads correctly once the printed coin is
+    // physically turned over left-to-right (as opposed to flipped top-
+    // to-bottom) to view its back.
+    mirror([1, 0, 0])
+      text(version_label, size = text_size, halign = "center", valign = "center", font = "DejaVu Sans:style=Bold");
+  }
+}
+
+module version_label_cut() {
+  if (version_label != "") {
+    depth = min(VERSION_LABEL_DEPTH, max(0, base_thickness - 0.2));
+    linear_extrude(height = depth + 0.01) // +eps: guarantees a clean cut through the bottom face
+      version_label_2d();
+  }
+}
+
 module token_body() {
-  union() {
-    linear_extrude(height = base_thickness)
-      token_base_2d();
-    translate([0, 0, base_thickness])
-      svg_relief();
+  if (svg_path != "" && relief_direction == "recessed") {
+    // Carve the relief into the top face instead of adding to it - same
+    // depth clamp as the border's own recessed cut below, so relief_height
+    // can never carve a hole through the token. Unlike the raised relief,
+    // this is a straight-walled cut (no draft-angle taper): the silicone
+    // that fills it is flexible enough to release from a shallow vertical
+    // pocket without one.
+    recess_depth = min(relief_height, max(0, base_thickness - 0.2));
+    difference() {
+      linear_extrude(height = base_thickness)
+        token_base_2d();
+      translate([0, 0, base_thickness - recess_depth])
+        linear_extrude(height = recess_depth + 0.01) // +eps: guarantees a clean cut through the top face
+          svg_shape_positioned();
+    }
+  } else {
+    union() {
+      linear_extrude(height = base_thickness)
+        token_base_2d();
+      translate([0, 0, base_thickness])
+        svg_relief_raised();
+    }
   }
 }
 
@@ -132,4 +198,15 @@ module token() {
   }
 }
 
-token();
+module coin() {
+  if (version_label != "") {
+    difference() {
+      token();
+      version_label_cut();
+    }
+  } else {
+    token();
+  }
+}
+
+coin();

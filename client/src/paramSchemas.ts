@@ -1,6 +1,23 @@
 import type { Field, ParamValues } from "./types";
 import { computeAutoFitScale, type SvgNaturalSize } from "./utils/svg";
 
+// Matches the server's version_label spec (server/src/lib/validation.ts) -
+// keep both in sync if this changes. Restricted to what the engraved
+// font can render cleanly, not for injection safety (the server already
+// guards that generically for every string param).
+export const VERSION_LABEL_MAX_LENGTH = 16;
+export const VERSION_LABEL_PATTERN = /^[A-Za-z0-9 .#/_-]*$/;
+
+/** Strips any character the back-label engraving can't accept, for live
+ * filtering as the user types rather than surfacing a validation error
+ * only after they hit Preview/Render. */
+export function sanitizeVersionLabel(value: string): string {
+  return Array.from(value)
+    .filter((ch) => VERSION_LABEL_PATTERN.test(ch))
+    .join("")
+    .slice(0, VERSION_LABEL_MAX_LENGTH);
+}
+
 export interface TokenPreset {
   id: "small" | "medium" | "large" | "custom";
   label: string;
@@ -127,7 +144,7 @@ export const medallionFields: Field[] = [
     label: "Coin Diameter",
     group: "geometry",
     min: 10,
-    max: 150,
+    max: 100,
     step: 1,
     default: 40,
     unit: "mm",
@@ -138,7 +155,7 @@ export const medallionFields: Field[] = [
     label: "Base Thickness",
     group: "geometry",
     min: 0.5,
-    max: 20,
+    max: 10,
     step: 0.1,
     default: 3,
     unit: "mm",
@@ -149,10 +166,21 @@ export const medallionFields: Field[] = [
     label: "Relief Height",
     group: "geometry",
     min: 0.2,
-    max: 10,
+    max: 5,
     step: 0.1,
     default: 1.5,
     unit: "mm",
+  },
+  {
+    type: "enum",
+    key: "relief_direction",
+    label: "Relief Direction",
+    group: "geometry",
+    default: "raised",
+    options: [
+      { value: "raised", label: "Raised" },
+      { value: "recessed", label: "Recessed" },
+    ],
   },
   {
     type: "number",
@@ -262,6 +290,18 @@ export const medallionFields: Field[] = [
     default: 2.5,
     unit: "mm",
     showIf: (p) => hasBorder(p) && p.border_style === "beaded",
+  },
+
+  // ---- Back Label ----
+  {
+    type: "string",
+    key: "version_label",
+    label: "Version Label",
+    group: "label",
+    maxLength: VERSION_LABEL_MAX_LENGTH,
+    placeholder: "e.g. V1 (blank = no label)",
+    default: "",
+    sanitize: sanitizeVersionLabel,
   },
 ];
 

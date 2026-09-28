@@ -5,8 +5,10 @@ interface ActionBarProps {
   onImportSettings: (file: File) => void;
   onPreview: () => void;
   onRender: () => void;
+  onDownloadPackage: (fileName: string) => void;
   isPreviewing: boolean;
   isRendering: boolean;
+  isPackaging: boolean;
   downloadUrl: string | null;
   errorMessage: string | null;
   fileName: string;
@@ -68,8 +70,10 @@ export function ActionBar({
   onImportSettings,
   onPreview,
   onRender,
+  onDownloadPackage,
   isPreviewing,
   isRendering,
+  isPackaging,
   downloadUrl,
   errorMessage,
   fileName,
@@ -78,14 +82,7 @@ export function ActionBar({
   const importInputRef = useRef<HTMLInputElement>(null);
   const busy = isPreviewing || isRendering;
   const trimmedName = fileName.trim();
-  const downloadFileName = trimmedName ? (trimmedName.toLowerCase().endsWith(".stl") ? trimmedName : `${trimmedName}.stl`) : undefined;
-  // The `download` attribute alone isn't enough: the server's response sets
-  // its own Content-Disposition filename (see server/src/routes/output.ts),
-  // which browsers prefer over this attribute for a same-origin navigation.
-  // Passing it as `?name=` lets the server echo the chosen name back.
-  const downloadHref = downloadUrl
-    ? `${downloadUrl}?download=1${downloadFileName ? `&name=${encodeURIComponent(downloadFileName)}` : ""}`
-    : undefined;
+  const canDownload = Boolean(downloadUrl) && !isPackaging;
 
   return (
     <div className="flex flex-col gap-2 border-t border-cocoa-800 bg-cocoa-900/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -151,23 +148,24 @@ export function ActionBar({
         >
           {isRendering ? <Spinner className="h-4 w-4 text-white" /> : <CubeIcon />}
         </button>
-        <a
-          href={downloadHref}
-          aria-disabled={!downloadUrl}
-          download={downloadFileName ?? true}
-          title={downloadUrl ? "Download STL" : "Download STL - run a Full Render first"}
-          aria-label="Download STL"
+        <button
+          type="button"
+          onClick={() => onDownloadPackage(trimmedName)}
+          disabled={!canDownload}
+          title={
+            downloadUrl
+              ? "Download Package - a .zip with the STL and its settings JSON"
+              : "Download Package - run a Full Render first"
+          }
+          aria-label="Download Package"
           className={`flex h-10 w-10 items-center justify-center rounded-md border transition-colors ${
             downloadUrl
-              ? "border-cocoa-500 text-cocoa-100 hover:bg-cocoa-800"
+              ? "border-cocoa-500 text-cocoa-100 hover:bg-cocoa-800 disabled:cursor-not-allowed disabled:opacity-60"
               : "cursor-not-allowed border-cocoa-800 text-cocoa-600"
           }`}
-          onClick={(e) => {
-            if (!downloadUrl) e.preventDefault();
-          }}
         >
-          <DownloadIcon />
-        </a>
+          {isPackaging ? <Spinner className="h-4 w-4 text-cocoa-100" /> : <DownloadIcon />}
+        </button>
       </div>
     </div>
   );

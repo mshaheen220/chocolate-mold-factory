@@ -2,6 +2,7 @@ import type { Field, ParamValues } from "../types";
 import { NumberField } from "./controls/NumberField";
 import { SelectField } from "./controls/SelectField";
 import { CheckboxField } from "./controls/CheckboxField";
+import { TextField } from "./controls/TextField";
 
 interface FieldRendererProps {
   field: Field;
@@ -33,6 +34,18 @@ export function FieldRenderer({ field, params, onChange }: FieldRendererProps) {
         value={params[field.key] as string}
         options={field.options}
         onChange={(v) => onChange(field.key, v)}
+      />
+    );
+  }
+
+  if (field.type === "string") {
+    return (
+      <TextField
+        label={field.label}
+        value={params[field.key] as string}
+        maxLength={field.maxLength}
+        placeholder={field.placeholder}
+        onChange={(v) => onChange(field.key, field.sanitize ? field.sanitize(v) : v)}
       />
     );
   }

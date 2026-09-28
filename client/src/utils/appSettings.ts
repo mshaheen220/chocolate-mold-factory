@@ -15,15 +15,19 @@ export interface AppSettingsFile {
   medallionParams: ParamValues;
 }
 
-export function exportAppSettings(
-  settings: Omit<AppSettingsFile, "version" | "exportedAt">,
-  fileName?: string,
-): void {
-  const payload: AppSettingsFile = {
+export function buildAppSettingsPayload(settings: Omit<AppSettingsFile, "version" | "exportedAt">): AppSettingsFile {
+  return {
     version: APP_SETTINGS_VERSION,
     exportedAt: new Date().toISOString(),
     ...settings,
   };
+}
+
+export function exportAppSettings(
+  settings: Omit<AppSettingsFile, "version" | "exportedAt">,
+  fileName?: string,
+): void {
+  const payload = buildAppSettingsPayload(settings);
   const trimmedName = fileName?.trim();
   const jsonFileName = trimmedName
     ? trimmedName.toLowerCase().endsWith(".json")

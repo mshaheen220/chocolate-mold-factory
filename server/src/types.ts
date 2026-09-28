@@ -1,4 +1,4 @@
-export type ParamType = "number" | "enum" | "boolean";
+export type ParamType = "number" | "enum" | "boolean" | "string";
 
 export interface NumberParamSpec {
   type: "number";
@@ -19,7 +19,15 @@ export interface BooleanParamSpec {
   default: boolean;
 }
 
-export type ParamSpec = NumberParamSpec | EnumParamSpec | BooleanParamSpec;
+export interface StringParamSpec {
+  type: "string";
+  maxLength: number;
+  /** Only characters this allows are accepted - keeps free text limited to what the OpenSCAD text() font can render. */
+  pattern: RegExp;
+  default: string;
+}
+
+export type ParamSpec = NumberParamSpec | EnumParamSpec | BooleanParamSpec | StringParamSpec;
 
 export type ParamSchema = Record<string, ParamSpec>;
 

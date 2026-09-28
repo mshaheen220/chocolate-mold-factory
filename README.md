@@ -16,6 +16,8 @@ A visual UI to configure, preview, and generate a single 3D-printable chocolate 
 - **Quick Preview vs. Full Render** — mirrors OpenSCAD's own Preview/Render split. Quick Preview uses a fixed low facet count and swaps the uploaded graphic for its convex hull (near-instant, even for complex artwork); Full Render always uses full detail and a user-adjustable facet count ("Render Detail"). Download STL only ever points at the last Full Render, so a rough draft can never be mistaken for print-ready output.
 - **Chocolate Cost Estimate** — computes the exact geometric volume of the coin (base + border + relief), with the relief's contribution measured by rasterizing the uploaded graphic to find its actual ink coverage rather than guessing a fill ratio, then converts that to a cost per coin for Milk/Dark/White/Colored chocolate.
 - **Save / Import Settings** — download the current parameters as a JSON file, and load them back later, so you don't have to remember slider values across sessions.
+- **Normalize to Layers** — snaps Base Thickness, Relief Height, and Border Height to whole print layers for a given layer height / first layer height, so each one's top surface lands exactly on a layer boundary.
+- **Back Label** — an optional short version/identifier string, etched as a shallow recess into the coin's back, so physical prints of different settings can be told apart.
 - **Print & Slicer Reference** — a persistent panel of recommended nozzle, filament, and slicer settings (with reasoning for each), exportable to `.txt` or `.json` to keep alongside a downloaded STL for later.
 - **Rotating tips** — a header panel of categorized tips (app usage, slicing, printing/mold-making) with manual prev/next, autoplay, and collapse.
 

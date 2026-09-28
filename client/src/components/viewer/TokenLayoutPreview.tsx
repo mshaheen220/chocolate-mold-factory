@@ -6,8 +6,8 @@ interface TokenLayoutPreviewProps {
   borderStyle: string;
   borderDirection: string;
   borderInset: number;
-  svgUrl: string;
-  svgNaturalSize: SvgNaturalSize;
+  svgUrl: string | null;
+  svgNaturalSize: SvgNaturalSize | null;
   svgScale: number;
   svgOffsetX: number;
   svgOffsetY: number;
@@ -54,8 +54,9 @@ export function TokenLayoutPreview({
   const radius = tokenSize / 2;
   const viewHalf = FIXED_VIEW_HALF;
 
-  const imgWidth = svgNaturalSize.width * svgScale;
-  const imgHeight = svgNaturalSize.height * svgScale;
+  const hasImage = svgUrl && svgNaturalSize;
+  const imgWidth = hasImage ? svgNaturalSize.width * svgScale : 0;
+  const imgHeight = hasImage ? svgNaturalSize.height * svgScale : 0;
   // SVG y grows downward but svg_offset_y (matching the OpenSCAD template)
   // is "+Y = up", so it's subtracted here rather than added.
   const imgX = -imgWidth / 2 + svgOffsetX;
@@ -76,9 +77,11 @@ export function TokenLayoutPreview({
 
         <TokenOutline radius={radius} fill="#d9b98c" stroke="#6f3c22" strokeWidth={viewHalf * 0.015} />
 
-        <g clipPath={`url(#${clipId})`}>
-          <image href={svgUrl} x={imgX} y={imgY} width={imgWidth} height={imgHeight} />
-        </g>
+        {hasImage && (
+          <g clipPath={`url(#${clipId})`}>
+            <image href={svgUrl} x={imgX} y={imgY} width={imgWidth} height={imgHeight} />
+          </g>
+        )}
 
         {borderStyle !== "none" && (
           <TokenOutline

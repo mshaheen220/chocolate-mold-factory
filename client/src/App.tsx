@@ -9,11 +9,25 @@ import { STLViewer } from "./components/viewer/STLViewer";
 import { TokenLayoutPreview } from "./components/viewer/TokenLayoutPreview";
 import { autoFitScaleForToken, defaultParams, medallionFields, type TokenPreset } from "./paramSchemas";
 import type { Field, ParamValues, Quality } from "./types";
-import { exportAppSettings, readAppSettingsFile } from "./utils/appSettings";
+import { buildAppSettingsPayload, exportAppSettings, readAppSettingsFile } from "./utils/appSettings";
+import { downloadBlob } from "./utils/downloadFile";
+import { normalizeToLayers } from "./utils/normalize";
 import { measureSvgFillRatio, readSvgNaturalSize, type SvgNaturalSize } from "./utils/svg";
+import { createZip } from "./utils/zip";
 
 // Matches the server's DEFAULT_FINAL_FACET_COUNT (server/src/lib/validation.ts).
 const DEFAULT_RENDER_DETAIL = 96;
+
+// Match the Print & Slicer Reference card's own recommendation (see
+// printRecommendations.ts) so the normalize inputs default to the same
+// numbers a user would already be using in their slicer.
+const DEFAULT_LAYER_HEIGHT = 0.09;
+const DEFAULT_FIRST_LAYER_HEIGHT = 0.12;
+
+function numberFieldBounds(fields: Field[], key: string): { min: number; max: number } {
+  const field = fields.find((f) => f.key === key);
+  return field && field.type === "number" ? { min: field.min, max: field.max } : { min: -Infinity, max: Infinity };
+}
 
 export default function App() {
   const [params, setParams] = useState<ParamValues>(() => defaultParams(medallionFields));
@@ -31,11 +45,30 @@ export default function App() {
   const [fileName, setFileName] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRendering, setIsRendering] = useState(false);
+  const [isPackaging, setIsPackaging] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [renderDetail, setRenderDetail] = useState(DEFAULT_RENDER_DETAIL);
+  const [layerHeight, setLayerHeight] = useState(DEFAULT_LAYER_HEIGHT);
+  const [firstLayerHeight, setFirstLayerHeight] = useState(DEFAULT_FIRST_LAYER_HEIGHT);
+  // True once params/svgFile have changed since the 3D model currently in
+  // modelUrl was generated - the viewer falls back to the instant 2D
+  // layout preview while stale, rather than silently showing a 3D model
+  // that no longer matches the sidebar (renderDetail is deliberately
+  // excluded - it only affects Full Render's facet smoothness, which the
+  // vector-based 2D preview can't show anyway).
+  const [isStale, setIsStale] = useState(false);
 
   const paramsRef = useRef(params);
   paramsRef.current = params;
+
+  const isFirstRenderRef = useRef(true);
+  useEffect(() => {
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      return;
+    }
+    setIsStale(true);
+  }, [params, svgFile]);
 
   // A single object URL per uploaded file, shared by the dropzone thumbnail
   // and the instant layout preview below.
@@ -62,6 +95,7 @@ export default function App() {
         const result = await generateModel({ params, file: svgFile, quality, renderDetail });
         setModelUrl(result.url);
         setModelQuality(result.quality);
+        setIsStale(false);
         if (result.quality === "final") {
           setDownloadUrl(result.url);
         }
@@ -130,7 +164,29 @@ export default function App() {
     [svgNaturalSize],
   );
 
-  const showLayoutPreview = svgFile && svgPreviewUrl && svgNaturalSize;
+  const handleNormalize = useCallback(() => {
+    setParams((prev) => {
+      const normalized = normalizeToLayers(
+        {
+          baseThickness: Number(prev.base_thickness),
+          reliefHeight: Number(prev.relief_height),
+          borderHeight: Number(prev.border_height),
+        },
+        { layerHeight, firstLayerHeight },
+        {
+          baseThickness: numberFieldBounds(medallionFields, "base_thickness"),
+          reliefHeight: numberFieldBounds(medallionFields, "relief_height"),
+          borderHeight: numberFieldBounds(medallionFields, "border_height"),
+        },
+      );
+      return {
+        ...prev,
+        base_thickness: normalized.baseThickness,
+        relief_height: normalized.reliefHeight,
+        border_height: normalized.borderHeight,
+      };
+    });
+  }, [layerHeight, firstLayerHeight]);
 
   const handleSaveSettings = useCallback(
     (fileName: string) => {
@@ -145,19 +201,61 @@ export default function App() {
       // Merge over the current schema's defaults rather than applying the
       // imported params verbatim - a file saved before a field existed
       // (e.g. the SVG offset fields) would otherwise leave that param
-      // undefined instead of falling back to its default.
-      setParams({ ...defaultParams(medallionFields), ...settings.medallionParams });
+      // undefined instead of falling back to its default. Also drop any
+      // imported key the current schema no longer has (e.g. render_mode,
+      // token_shape, grid_x from a file saved before the mold-box/shape
+      // removal) - carrying those forward would get them silently
+      // resubmitted to the server on generate, which rejects unknown
+      // fields outright.
+      const knownKeys = new Set(medallionFields.map((f) => f.key));
+      const importedParams = Object.fromEntries(
+        Object.entries(settings.medallionParams).filter(([key]) => knownKeys.has(key)),
+      );
+      setParams({ ...defaultParams(medallionFields), ...importedParams });
       setRenderDetail(settings.renderDetail);
       // The previous render/download no longer reflects the newly loaded
       // params.
       setModelUrl(null);
       setModelQuality(null);
       setDownloadUrl(null);
+      setIsStale(false);
       setErrorMessage(null);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to import settings");
     }
   }, []);
+
+  const handleDownloadPackage = useCallback(
+    async (rawFileName: string) => {
+      if (!downloadUrl) return;
+      setIsPackaging(true);
+      setErrorMessage(null);
+      try {
+        const trimmed = rawFileName.trim();
+        // Strip a typed .stl/.zip extension - it's re-added below once we
+        // know whether it's naming the .stl inside or the .zip around it.
+        const base = trimmed ? trimmed.replace(/\.(stl|zip)$/i, "") : "chocolate-mold-factory-coin";
+
+        const stlResponse = await fetch(downloadUrl);
+        if (!stlResponse.ok) throw new Error("Failed to fetch the generated STL");
+        const stlBytes = new Uint8Array(await stlResponse.arrayBuffer());
+
+        const settingsPayload = buildAppSettingsPayload({ renderDetail, medallionParams: params });
+        const settingsBytes = new TextEncoder().encode(JSON.stringify(settingsPayload, null, 2));
+
+        const zipBlob = createZip([
+          { name: `${base}.stl`, data: stlBytes },
+          { name: "settings.json", data: settingsBytes },
+        ]);
+        downloadBlob(`${base}.zip`, zipBlob);
+      } catch (err) {
+        setErrorMessage(err instanceof Error ? err.message : "Failed to build the download package");
+      } finally {
+        setIsPackaging(false);
+      }
+    },
+    [downloadUrl, renderDetail, params],
+  );
 
   return (
     <div className="flex h-screen w-screen flex-col bg-cocoa-950">
@@ -191,6 +289,11 @@ export default function App() {
               svgFillRatio={svgFillRatio}
               renderDetail={renderDetail}
               onRenderDetailChange={setRenderDetail}
+              layerHeight={layerHeight}
+              onLayerHeightChange={setLayerHeight}
+              firstLayerHeight={firstLayerHeight}
+              onFirstLayerHeightChange={setFirstLayerHeight}
+              onNormalize={handleNormalize}
               onSvgFile={handleSvgFile}
               onSelectPreset={handlePresetSelect}
             />
@@ -198,7 +301,7 @@ export default function App() {
 
           <main className="flex min-h-0 flex-col">
             <div className="relative min-h-0 flex-1">
-              {!modelUrl && showLayoutPreview ? (
+              {!modelUrl || isStale ? (
                 <TokenLayoutPreview
                   tokenSize={Number(params.token_size)}
                   borderStyle={String(params.border_style)}
@@ -213,7 +316,7 @@ export default function App() {
               ) : (
                 <STLViewer url={modelUrl} />
               )}
-              {modelUrl && modelQuality === "draft" && !isPreviewing && !isRendering && (
+              {modelUrl && !isStale && modelQuality === "draft" && !isPreviewing && !isRendering && (
                 <div className="pointer-events-none absolute left-1/2 top-3 -translate-x-1/2 rounded-full border border-amber-600/60 bg-amber-950/80 px-3 py-1 text-xs font-medium text-amber-200 shadow">
                   Draft preview (low facet count) — Full Render for print-quality output
                 </div>
@@ -225,8 +328,10 @@ export default function App() {
               onImportSettings={handleImportSettings}
               onPreview={handlePreview}
               onRender={handleRender}
+              onDownloadPackage={handleDownloadPackage}
               isPreviewing={isPreviewing}
               isRendering={isRendering}
+              isPackaging={isPackaging}
               downloadUrl={downloadUrl}
               errorMessage={errorMessage}
               fileName={fileName}

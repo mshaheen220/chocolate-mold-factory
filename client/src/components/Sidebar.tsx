@@ -16,6 +16,12 @@ import { TokenSizePresets } from "./controls/TokenSizePresets";
 const MIN_RENDER_DETAIL = 16;
 const MAX_RENDER_DETAIL = 180;
 
+// Generous FDM range (0.04mm fine-detail resins/nozzles up to 0.4mm fat
+// nozzles) rather than anything tied to a specific printer.
+const MIN_LAYER_HEIGHT = 0.04;
+const MAX_LAYER_HEIGHT = 0.4;
+const MAX_FIRST_LAYER_HEIGHT = 0.6;
+
 interface SidebarProps {
   fields: Field[];
   params: ParamValues;
@@ -28,11 +34,17 @@ interface SidebarProps {
   onSelectPreset: (preset: TokenPreset) => void;
   renderDetail: number;
   onRenderDetailChange: (value: number) => void;
+  layerHeight: number;
+  onLayerHeightChange: (value: number) => void;
+  firstLayerHeight: number;
+  onFirstLayerHeightChange: (value: number) => void;
+  onNormalize: () => void;
 }
 
 const GROUP_CARDS: { group: Field["group"]; title: string }[] = [
   { group: "geometry", title: "Geometry & Sizing" },
   { group: "border", title: "Border" },
+  { group: "label", title: "Back Label" },
 ];
 
 export function Sidebar({
@@ -47,6 +59,11 @@ export function Sidebar({
   onSelectPreset,
   renderDetail,
   onRenderDetailChange,
+  layerHeight,
+  onLayerHeightChange,
+  firstLayerHeight,
+  onFirstLayerHeightChange,
+  onNormalize,
 }: SidebarProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -79,6 +96,12 @@ export function Sidebar({
             {groupFields.map((field) => (
               <FieldRenderer key={field.key} field={field} params={params} onChange={onChange} />
             ))}
+            {group === "label" && (
+              <p className="text-xs text-cocoa-400">
+                Etched as a shallow recess into the back (bed-facing) side, so printed coins with different settings
+                can be told apart. Leave blank to skip it.
+              </p>
+            )}
           </ParameterCard>
         );
       })}
@@ -96,6 +119,38 @@ export function Sidebar({
           Curve smoothness for Full Render — higher is smoother but slower. Quick Preview always uses a fast fixed
           value regardless of this setting.
         </p>
+      </ParameterCard>
+
+      <ParameterCard title="Normalize to Layers" defaultOpen={false}>
+        <NumberField
+          label="Layer Height"
+          value={layerHeight}
+          min={MIN_LAYER_HEIGHT}
+          max={MAX_LAYER_HEIGHT}
+          step={0.01}
+          unit="mm"
+          onChange={onLayerHeightChange}
+        />
+        <NumberField
+          label="First Layer Height"
+          value={firstLayerHeight}
+          min={MIN_LAYER_HEIGHT}
+          max={MAX_FIRST_LAYER_HEIGHT}
+          step={0.01}
+          unit="mm"
+          onChange={onFirstLayerHeightChange}
+        />
+        <p className="text-xs text-cocoa-400">
+          Snaps Base Thickness, Relief Height, and Border Height to whole layers at these settings, so each one's
+          top surface lands exactly on a layer boundary instead of ending partway through one.
+        </p>
+        <button
+          type="button"
+          onClick={onNormalize}
+          className="w-full rounded-md border border-cocoa-700 px-2 py-1.5 text-xs font-medium text-cocoa-200 transition-colors hover:bg-cocoa-800"
+        >
+          Normalize
+        </button>
       </ParameterCard>
 
       <ParameterCard title="Cost Estimate" defaultOpen={false}>
