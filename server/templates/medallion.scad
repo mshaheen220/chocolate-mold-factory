@@ -84,13 +84,30 @@ module svg_shape_positioned() {
       svg_shape_2d();
 }
 
-// Adds the relief as a raised bump, tapered by draft angle so it releases
-// cleanly from a printed mold cavity.
+// Adds the relief as a raised bump whose every wall leans inward by
+// draft_angle, so each line - however thin, wherever it sits on the coin -
+// releases cleanly from the silicone. offset() can't taper a single
+// extrusion, so it's a short stack of slices, each inset a little more than
+// the one below. The steps are far smaller than a nozzle width, so they
+// print as a taper. Kept to a few slices: every slice is another full CGAL
+// union of the artwork, and render time grows with each one.
+//
+// A single scaled linear_extrude looks similar but isn't a draft: it shrinks
+// the whole design toward the coin's centre, so a thin line barely narrows
+// and its centre-facing wall leans outward - an undercut that grips the
+// silicone.
+DRAFT_SLICES = 3;
+
 module svg_relief_raised() {
   if (svg_path != "") {
-    taper_ratio = max(0.05, 1 - (2 * relief_height * tan(draft_angle) / token_min_side()));
-    linear_extrude(height = relief_height, scale = taper_ratio)
-      svg_shape_positioned();
+    slices = draft_angle > 0 ? DRAFT_SLICES : 1;
+    slice_h = relief_height / slices;
+    for (k = [0 : slices - 1])
+      translate([0, 0, k * slice_h])
+        // +eps on all but the top slice: overlap so the slices union into one solid
+        linear_extrude(height = slice_h + (k < slices - 1 ? 0.01 : 0))
+          offset(delta = -(k + 0.5) * slice_h * tan(draft_angle)) // inset at the slice midpoint: closest to a smooth taper
+            svg_shape_positioned();
   }
 }
 

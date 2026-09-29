@@ -59,6 +59,7 @@ How it works: the browser flattens every filled shape into polygons (resolving C
 │   ├── output/                 Generated STL files (persisted via Docker volume)
 │   └── temp/                   Scratch space for in-flight compiles
 ├── mold-box/                  Standalone mold-box.scad: reusable silicone pour box (sleeve + TPU gasket + coin baseplate)
+│                              build_baseplate.py: coin STLs in, pocket (or merged) baseplate + matching box/gasket out
 ├── docker/                    Container support scripts (xvfb wrapper)
 ├── Dockerfile                 Multi-stage build (deps → client/server build → runtime/dev/client-dev)
 ├── docker-compose.yml         Single-container production deployment

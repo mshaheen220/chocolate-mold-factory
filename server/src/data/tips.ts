@@ -13,7 +13,7 @@ export const TIPS: Tip[] = [
   { category: "generating", text: "Download STL only ever points at your last Full Render, so you can never accidentally print a rough draft." },
   { category: "generating", text: "The layout preview under Asset Upload updates instantly as you drag sliders — no need to regenerate just to check sizing." },
   { category: "generating", text: "Beaded borders are the slowest detail to compile. Try Quick Preview first if you're using one." },
-  { category: "generating", text: "Draft Angle controls how easily a piece releases from a printed mold — 3–5° is a solid default." },
+  { category: "generating", text: "Draft Angle leans every wall of the raised design inward so it releases from the silicone. On thin lines, a lower relief height helps more than a bigger angle." },
   { category: "generating", text: "Uploading a new SVG re-fits the scale automatically to your current coin size." },
   { category: "generating", text: "Render Detail ($fn) only affects Full Render — Quick Preview always uses a fast fixed value so it stays quick regardless of this setting." },
 
