@@ -31,6 +31,10 @@ yarn-error.log*
 *.stl
 *.tmp
 
+# Python
+__pycache__/
+*.pyc
+
 # OS & Editor
 .DS_Store
 Thumbs.db
