@@ -49,6 +49,8 @@ ledge_width        = 4;   // how far the ledge sticks in under the gasket
 ledge_height       = 3;   // thickness of the ledge itself
 inner_draft_angle  = 3;   // outward flare of the inner walls above the plate
 baseplate_tolerance = 0.6; // total clearance (both sides) between plate and walls
+height_marks       = true; // mm scale on the front and back inner walls, 0 = top of the plate
+mark_depth         = 0.4;  // how deep the marks are cut into the wall
 
 /* [Gasket & Baseplate] */
 gasket_thickness    = 1.5;
@@ -115,7 +117,34 @@ module box() {
     translate([0, 0, ledge_height + pocket_h])
       linear_extrude(height = draft_h + eps, scale = [top_x / pocket_x, top_y / pocket_y])
         square([pocket_x, pocket_y], center = true);
+    if (height_marks) {
+      height_scale();
+      rotate([0, 0, 180]) height_scale(); // same scale on the back wall, still reading upright
+    }
   }
+}
+
+// A millimetre scale cut into the front inner wall, near the right-hand
+// corner as seen from inside. 0 is the top of the plate, so a reading is
+// how deep the silicone is over the plate; the coins top out at
+// coin_thickness. Built flat against the wall, then sheared to follow the
+// draft. Ticks are V-grooves so the silicone ribs they form slide out.
+module height_scale() {
+  x0 = pocket_x / 2 - 6; // scale runs toward -X from here
+  translate([0, -pocket_y / 2, ledge_height + pocket_h])
+    multmatrix([[1, 0, 0, 0], [0, 1, -tan(inner_draft_angle), 0], [0, 0, 1, 0]]) {
+      for (h = [1 : floor(draft_h - 0.5)]) {
+        len = h % 5 == 0 ? 6 : 3;
+        // V-groove: a square turned 45 deg, half of it buried in the wall
+        translate([x0 - len, 0, h]) rotate([0, 90, 0])
+          linear_extrude(height = len) rotate(45)
+            square(mark_depth * sqrt(2), center = true);
+        if (h % 5 == 0)
+          translate([x0 - len - 1, 0, h]) rotate([90, 0, 180]) // text faces into the box
+            translate([0, 0, -mark_depth]) linear_extrude(height = mark_depth + 0.02) // cut into the wall
+              text(str(h), size = 3, halign = "left", valign = "center", font = "DejaVu Sans:style=Bold");
+      }
+    }
 }
 
 module gasket() {
