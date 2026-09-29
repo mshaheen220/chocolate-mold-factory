@@ -42,6 +42,7 @@ coin_stls      = [];  // or a different STL per spot, filled left to right from 
 gap_between_coins      = 10; // coin edge to coin edge
 border_gap             = 10; // outer coins to the box's inner wall
 silicone_top_clearance = 8;  // top of coins to top of box = mold's back thickness
+plate_width            = 0;  // >0 fixes the plate's X size (e.g. a 152.4 mm / 6" acrylic strip); coins stay centred
 
 /* [Box] */
 wall_thickness     = 2.4;
@@ -65,7 +66,8 @@ $fn = 96;
 // Derived sizes
 // ---------------------------------------------------------------------
 
-plate_x = grid_x * coin_width  + (grid_x - 1) * gap_between_coins + 2 * border_gap;
+coins_x = grid_x * coin_width + (grid_x - 1) * gap_between_coins;
+plate_x = plate_width > 0 ? plate_width : coins_x + 2 * border_gap;
 plate_y = grid_y * coin_length + (grid_y - 1) * gap_between_coins + 2 * border_gap;
 
 // Straight-walled pocket the gasket and plate drop into.
@@ -97,6 +99,7 @@ echo(str("Silicone needed: about ", round(silicone_ml), " mL (less the coins)"))
 function has_coins() = coin_stl != "" || len(coin_stls) > 0;
 
 if (!has_coins() && part == "all") echo("WARNING: coin_stl is not set - the baseplate has no coins on it");
+assert(plate_x >= coins_x, "plate_width is narrower than the coins");
 assert(opening_x > 0 && opening_y > 0, "ledge_width is too big for this plate");
 
 // ---------------------------------------------------------------------
@@ -156,7 +159,7 @@ module gasket() {
 }
 
 function coin_center(i, j) = [
-  -plate_x / 2 + border_gap + coin_width  / 2 + i * (coin_width  + gap_between_coins),
+  -coins_x / 2 + coin_width / 2 + i * (coin_width + gap_between_coins),
   -plate_y / 2 + border_gap + coin_length / 2 + j * (coin_length + gap_between_coins)
 ];
 
